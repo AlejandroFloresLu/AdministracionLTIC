@@ -1,0 +1,49 @@
+<resources>
+    <string name="app_name">ScanTech LTIC</string>
+
+    <!-- Camera Permission -->
+    <string name="camera_permission_title">Acceso a la Cámara Requerido</string>
+    <string name="camera_permission_description">ScanTech requiere acceso a la cámara para auditar los códigos de los equipos y ejecutar el escaneo óptico mediante Edge AI (ML Kit) 100% offline.</string>
+    <string name="camera_permission_grant_button">Otorgar Permiso</string>
+    <string name="camera_permission_cancel_button">Cancelar</string>
+
+    <!-- Visual States -->
+    <string name="loading_assets">Cargando inventario LTIC...</string>
+    <string name="empty_inventory_title">Sin activos disponibles</string>
+    <string name="empty_inventory_description">No se encontraron equipos tecnológicos que coincidan con la búsqueda o categoría seleccionada.</string>
+    <string name="error_loading_inventory">Ocurrió un error al consultar los datos locales</string>
+    <string name="retry_button">Reintentar</string>
+    <string name="reset_filters">Limpiar Filtros</string>
+
+    <!-- Catalog & Filters -->
+    <string name="inventory_title">Catálogo ScanTech</string>
+    <string name="search_placeholder">Buscar activo por modelo, serie o código...</string>
+    <string name="clear_search">Borrar búsqueda</string>
+    <string name="scan_action">Escanear Activo</string>
+    <string name="category_all">Todos</string>
+    <string name="category_laptops">Laptops</string>
+    <string name="category_servers">Servidores</string>
+    <string name="category_networks">Redes</string>
+    <string name="category_peripherals">Periféricos</string>
+
+    <!-- Asset Detail & Actions -->
+    <string name="asset_detail_title">Ficha Técnica &amp; Auditoría</string>
+    <string name="specifications_header">Especificaciones del Hardware</string>
+    <string name="observations_label">Observaciones físicas del periférico</string>
+    <string name="observations_placeholder">Registre desgaste, fisuras, estado de bisagras o incidencias físicas...</string>
+    <string name="save_changes">Guardar</string>
+    <string name="discard_changes">Descartar</string>
+    <string name="back">Volver</string>
+    <string name="flashlight">Linterna</string>
+
+    <!-- Operational States -->
+    <string name="status_operativo">Operativo</string>
+    <string name="status_advertencia">Advertencia</string>
+    <string name="status_critico">Crítico</string>
+
+    <!-- Sync States (Offline-First) -->
+    <string name="sync_status_synced">Sincronizado</string>
+    <string name="sync_status_pending_create">Pendiente Crear</string>
+    <string name="sync_status_pending_update">Pendiente Actualizar</string>
+    <string name="sync_status_pending_delete">Pendiente Eliminar</string>
+</resources>
