@@ -69,6 +69,14 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
+    // Red (API REST)
+    implementation(libs.retrofit)
+    implementation(libs.okhttp)
+    implementation(libs.retrofit.kotlinx.serialization.converter)
+
+    // Códigos QR
+    implementation(libs.zxing.core)
+
     // CameraX & ML Kit
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SyncQueueDao {
@@ -23,4 +24,12 @@ interface SyncQueueDao {
     /** Suma un intento fallido a una operación. */
     @Query("UPDATE sync_queue SET intentos = intentos + 1 WHERE id = :id")
     suspend fun sumarIntento(id: Long)
+
+    /** Observa cuántas operaciones siguen pendientes de subir (indicador de sincronización). */
+    @Query("SELECT COUNT(*) FROM sync_queue")
+    fun observarPendientes(): Flow<Int>
+
+    /** Observa cuántas operaciones pendientes tiene un activo concreto. */
+    @Query("SELECT COUNT(*) FROM sync_queue WHERE assetId = :assetId")
+    fun observarPendientesDeActivo(assetId: String): Flow<Int>
 }
