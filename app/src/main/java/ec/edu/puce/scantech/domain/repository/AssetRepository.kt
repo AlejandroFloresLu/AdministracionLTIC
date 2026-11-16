@@ -1,0 +1,51 @@
+package ec.edu.puce.scantech.domain.repository
+
+import ec.edu.puce.scantech.domain.Result
+import ec.edu.puce.scantech.domain.model.Asset
+import kotlinx.coroutines.flow.Flow
+
+/** Resumen de una ronda de sincronización. */
+data class SyncSummary(
+    /** Operaciones locales que el servidor aceptó. */
+    val sent: Int,
+    /** Operaciones que el servidor rechazó; siguen en la cola y se reintentarán. */
+    val rejected: Int,
+    /** Activos descargados del servidor. */
+    val received: Int,
+    /** Ids de activos en conflicto que requieren revisión manual (se conservó la copia local). */
+    val needsReview: List<String>
+)
+
+/**
+ * Único punto de acceso a los datos de activos: une Room (fuente de verdad) y la API REST.
+ * Los ViewModels dependen solo de esta interfaz.
+ *
+ * Offline-first: crear, editar y eliminar escriben en Room y encolan la operación; nunca
+ * esperan a la red. [sync] sube la cola y descarga los cambios del servidor.
+ */
+interface AssetRepository {
+
+    /** Catálogo sin borrados. [query] vacío = sin filtro de texto; [category] nulo = todas. */
+    fun observeAssets(query: String = "", category: String? = null): Flow<List<Asset>>
+
+    /** Emite el activo o `null` si no existe o fue dado de baja. */
+    fun observeById(id: String): Flow<Asset?>
+
+    /** Cantidad de operaciones esperando subirse al servidor. */
+    fun observePendingCount(): Flow<Int>
+
+    /** Busca un activo por el QR escaneado. */
+    suspend fun getByQrCode(qrCode: String): Result<Asset>
+
+    /** Indica si el QR ya está en uso; [excludeId] ignora al propio activo al editar. */
+    suspend fun existsQrCode(qrCode: String, excludeId: String? = null): Result<Boolean>
+
+    suspend fun create(asset: Asset): Result<Asset>
+
+    suspend fun update(asset: Asset): Result<Asset>
+
+    suspend fun delete(id: String): Result<Unit>
+
+    /** Sube la cola de pendientes y descarga cambios del servidor. */
+    suspend fun sync(): Result<SyncSummary>
+}
