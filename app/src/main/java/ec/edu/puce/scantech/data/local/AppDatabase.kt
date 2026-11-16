@@ -5,9 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import ec.edu.puce.scantech.data.local.dao.CategoryDao
 import ec.edu.puce.scantech.data.local.dao.SyncQueueDao
+import ec.edu.puce.scantech.data.local.entity.AssetEntity
 import ec.edu.puce.scantech.data.local.entity.CategoryEntity
 import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
 
@@ -19,10 +21,11 @@ import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
  */
 @Database(
     entities = [
+        AssetEntity::class,
         CategoryEntity::class,
         SyncOperationEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(SyncStatusConverter::class)
@@ -35,6 +38,24 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val NOMBRE_ARCHIVO = "scantech_ltic.db"
 
+        /** v1 -> v2: agrega la tabla `assets` con sus índices; no toca los datos existentes. */
+        val MIGRACION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `assets` (" +
+                        "`id` TEXT NOT NULL, `qrCode` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`category` TEXT NOT NULL, `technicalSpecs` TEXT NOT NULL, " +
+                        "`color` TEXT, `dimensions` TEXT, `block` TEXT NOT NULL, " +
+                        "`shelf` TEXT NOT NULL, `locker` TEXT NOT NULL, `units` INTEGER NOT NULL, " +
+                        "`observations` TEXT, `syncStatus` TEXT NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL, `deletedAt` INTEGER, PRIMARY KEY(`id`))"
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_assets_qrCode` ON `assets` (`qrCode`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_assets_category` ON `assets` (`category`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_assets_name` ON `assets` (`name`)")
+            }
+        }
+
         @Volatile
         private var instancia: AppDatabase? = null
 
@@ -46,6 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE_ARCHIVO
                 )
+                    .addMigrations(MIGRACION_1_2)
                     .addCallback(SembradoInicial)
                     .build()
                     .also { instancia = it }
