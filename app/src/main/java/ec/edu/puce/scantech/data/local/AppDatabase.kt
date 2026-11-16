@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import ec.edu.puce.scantech.data.local.dao.AssetDao
 import ec.edu.puce.scantech.data.local.dao.CategoryDao
 import ec.edu.puce.scantech.data.local.dao.SyncQueueDao
 import ec.edu.puce.scantech.data.local.entity.AssetEntity
@@ -30,6 +31,8 @@ import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
 )
 @TypeConverters(SyncStatusConverter::class)
 abstract class AppDatabase : RoomDatabase() {
+
+    abstract fun assetDao(): AssetDao
 
     abstract fun categoryDao(): CategoryDao
 
