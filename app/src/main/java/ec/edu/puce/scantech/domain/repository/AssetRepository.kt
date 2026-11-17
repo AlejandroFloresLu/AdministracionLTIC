@@ -4,12 +4,15 @@ import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import kotlinx.coroutines.flow.Flow
 
+/** Operación que el servidor no aceptó; se conserva en la cola para revisarla o reintentarla. */
+data class RechazoSync(val assetId: String, val motivo: String)
+
 /** Resumen de una ronda de sincronización. */
 data class SyncSummary(
     /** Operaciones locales que el servidor aceptó. */
     val sent: Int,
-    /** Operaciones que el servidor rechazó; siguen en la cola y se reintentarán. */
-    val rejected: Int,
+    /** Operaciones rechazadas con su motivo; siguen en la cola. */
+    val rejected: List<RechazoSync>,
     /** Activos descargados del servidor. */
     val received: Int,
     /** Ids de activos en conflicto que requieren revisión manual (se conservó la copia local). */

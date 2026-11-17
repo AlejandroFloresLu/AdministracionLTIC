@@ -66,13 +66,13 @@ class AssetRepositoryTest {
     }
 
     @Test
-    fun eliminarUnActivoRecienCreadoLoQuitaTodoDeLaCola() = runBlocking {
+    fun eliminarOcultaElActivoYEncolaLaBaja() = runBlocking {
         val activo = (repo.create(nuevo("LTIC-000001")) as Result.Success).data
 
         assertTrue(repo.delete(activo.id) is Result.Success)
 
         assertNull(repo.observeById(activo.id).first())
-        assertEquals(0, repo.observePendingCount().first())
+        assertEquals(2, repo.observePendingCount().first())
     }
 
     @Test
@@ -95,9 +95,20 @@ class AssetRepositoryTest {
 
         val resultado = repo.sync() as Result.Success
 
-        assertEquals(1, resultado.data.rejected)
+        assertEquals(1, resultado.data.rejected.size)
         assertEquals(1, repo.observePendingCount().first())
         assertEquals(1, db.syncQueueDao().listarPendientes().single().intentos)
+    }
+
+    @Test
+    fun syncEnviaLaColaEnLotesDe50() = runBlocking {
+        repeat(120) { repo.create(nuevo("LTIC-%06d".format(it + 1))) }
+
+        val resultado = repo.sync() as Result.Success
+
+        assertEquals(120, resultado.data.sent)
+        assertEquals(listOf(50, 50, 20), api.lotes.map { it.operaciones.size })
+        assertEquals(0, repo.observePendingCount().first())
     }
 
     @Test
