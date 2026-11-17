@@ -4,8 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ec.edu.puce.scantech.data.local.SyncStatus
+import ec.edu.puce.scantech.data.mapper.toAsset
 import ec.edu.puce.scantech.data.model.ActivoLTIC
 import ec.edu.puce.scantech.data.model.EstadoOperativo
+import ec.edu.puce.scantech.domain.model.Asset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -144,6 +146,16 @@ class InventoryViewModel(
     }
 
     /**
+     * Devuelve el activo como modelo de dominio [Asset] para la Ficha Técnica.
+     *
+     * Por ahora se arma a partir de los datos de prueba; cuando el catálogo lea de Room
+     * (#53) este método devolverá directamente el [Asset] del repositorio.
+     */
+    fun getAssetById(assetId: String): Asset? {
+        return getActivoById(assetId)?.toAsset()
+    }
+
+    /**
      * Actualiza las observaciones físicas de un activo (cambio que marca el activo como PENDING_UPDATE
      * dentro de la estrategia Offline-First).
      */
@@ -181,6 +193,12 @@ class InventoryViewModel(
                 ram = "16GB DDR5",
                 cpu = "Intel Core i7-1365U",
                 ubicacion = "Bodega Central - Estante A1",
+                color = "Gris titanio",
+                dimensiones = "32.1 × 21.2 × 1.9 cm",
+                bloque = "A",
+                estante = "1",
+                casillero = "04",
+                unidades = 3,
                 observaciones = "Equipo con leve desgaste cosmético en la bisagra superior.",
                 estadoOperativo = EstadoOperativo.ADVERTENCIA,
                 syncStatus = SyncStatus.SYNCED
@@ -196,6 +214,12 @@ class InventoryViewModel(
                 ram = "64GB ECC",
                 cpu = "Dual Intel Xeon Silver 4210R",
                 ubicacion = "Data Center LTIC - Rack 04",
+                color = "Negro",
+                dimensiones = "1U · 43.5 × 70.7 × 4.3 cm",
+                bloque = "Data Center",
+                estante = "Rack 04",
+                casillero = "U12",
+                unidades = 1,
                 observaciones = "Módulo de fuente redundante descalibrado, requiere reemplazo urgente.",
                 estadoOperativo = EstadoOperativo.CRITICO,
                 syncStatus = SyncStatus.PENDING_UPDATE
@@ -211,6 +235,12 @@ class InventoryViewModel(
                 ram = "512MB",
                 cpu = "APM86392 600MHz",
                 ubicacion = "Laboratorio Redes Piso 2",
+                color = "Azul y gris",
+                dimensiones = "44.5 × 27.9 × 4.4 cm",
+                bloque = "B",
+                estante = "2",
+                casillero = "07",
+                unidades = 2,
                 observaciones = "Puertos 1-48 validados con tráfico normal.",
                 estadoOperativo = EstadoOperativo.OPERATIVO,
                 syncStatus = SyncStatus.SYNCED
@@ -226,6 +256,12 @@ class InventoryViewModel(
                 ram = "32GB LPDDR5",
                 cpu = "AMD Ryzen 7 PRO 7840U",
                 ubicacion = "Bodega Central - Estante A2",
+                color = "Negro",
+                dimensiones = "31.7 × 22.7 × 1.8 cm",
+                bloque = "A",
+                estante = "2",
+                casillero = "11",
+                unidades = 5,
                 observaciones = "Equipo nuevo recibido en recepción.",
                 estadoOperativo = EstadoOperativo.OPERATIVO,
                 syncStatus = SyncStatus.PENDING_CREATE
@@ -241,6 +277,12 @@ class InventoryViewModel(
                 ram = "4GB",
                 cpu = "Multi-Core x86",
                 ubicacion = "Armario de Comunicaciones Sótano",
+                color = "Gris",
+                dimensiones = "43.8 × 37.5 × 4.4 cm",
+                bloque = "Sótano",
+                estante = "Armario COM",
+                casillero = "02",
+                unidades = 1,
                 observaciones = "Ventilador secundario con ruido anómalo.",
                 estadoOperativo = EstadoOperativo.ADVERTENCIA,
                 syncStatus = SyncStatus.SYNCED
@@ -256,6 +298,12 @@ class InventoryViewModel(
                 ram = "N/A",
                 cpu = "Embedded",
                 ubicacion = "Mesa de Auditoría LTIC",
+                color = "Negro",
+                dimensiones = "17.5 × 7.1 × 10.2 cm",
+                bloque = "C",
+                estante = "Mesa de auditoría",
+                casillero = "01",
+                unidades = 4,
                 observaciones = "Cable USB reemplazado y calibrado.",
                 estadoOperativo = EstadoOperativo.OPERATIVO,
                 syncStatus = SyncStatus.SYNCED
