@@ -15,3 +15,6 @@
 local.properties
 *.apk
 *.aab
+
+# Salidas de compilación de cualquier módulo (app/build, etc.)
+build/

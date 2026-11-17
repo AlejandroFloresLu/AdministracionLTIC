@@ -41,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ec.edu.puce.scantech.R
-import ec.edu.puce.scantech.ui.theme.ScanTechMagenta
 
 /**
  * Pantalla de Escáner Óptico Continuo mediante Edge AI (CameraX + Google ML Kit).
@@ -120,7 +119,7 @@ fun ScannerScreen(
                     .size(260.dp)
                     .border(
                         width = 3.dp,
-                        color = ScanTechMagenta,
+                        color = MaterialTheme.colorScheme.tertiary,
                         shape = RoundedCornerShape(24.dp)
                     )
                     .background(
@@ -133,7 +132,7 @@ fun ScannerScreen(
                     imageVector = Icons.Rounded.QrCode,
                     contentDescription = null,
                     modifier = Modifier.size(140.dp),
-                    tint = ScanTechMagenta.copy(alpha = 0.6f)
+                    tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f)
                 )
             }
 
@@ -173,7 +172,7 @@ fun ScannerScreen(
                 onClick = { onBarcodeDetected("LTIC-2048") },
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ScanTechMagenta,
+                    containerColor = MaterialTheme.colorScheme.tertiary,
                     contentColor = Color.White
                 ),
                 modifier = Modifier

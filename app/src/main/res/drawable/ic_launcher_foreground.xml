@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono de ScanTech LTIC: marco de escáner con un código QR simplificado.
+     Zona segura del ícono adaptativo: 66x66 dp centrados en un lienzo de 108x108. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Esquinas del marco de escaneo -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,30h12v4h-8v8h-4z M78,30v12h-4v-8h-8v-4z M30,78v-12h4v8h8v4z M78,78h-12v-4h8v-8h4z" />
+
+    <!-- Bloques del código QR -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,40h10v10h-10z M58,40h10v10h-10z M40,58h10v10h-10z M58,58h4v4h-4z M64,64h4v4h-4z M58,64h4v4h-4z M64,58h4v4h-4z" />
+
+    <!-- Línea láser del escáner -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,53h36v2h-36z" />
+</vector>
