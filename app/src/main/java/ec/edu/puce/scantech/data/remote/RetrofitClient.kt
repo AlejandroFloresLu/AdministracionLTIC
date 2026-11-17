@@ -18,6 +18,8 @@ object RetrofitClient {
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
+        // Sin esto, campos con valor por defecto (p. ej. units = 0) no viajarían al servidor.
+        encodeDefaults = true
     }
 
     private val clienteHttp: OkHttpClient by lazy {
