@@ -14,6 +14,7 @@ import ec.edu.puce.scantech.data.remote.SyncOperationDto
 import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.repository.AssetRepository
+import ec.edu.puce.scantech.domain.repository.RechazoSync
 import ec.edu.puce.scantech.domain.repository.SyncSummary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -103,13 +104,14 @@ class AssetRepositoryImpl(
 
     override suspend fun sync(): Result<SyncSummary> {
         return try {
-            val pendientes = syncQueueDao.listarPendientes()
             var enviadas = 0
-            var rechazadas = 0
+            val rechazos = mutableListOf<RechazoSync>()
 
-            if (pendientes.isNotEmpty()) {
-                val lote = SyncBatchRequest(
-                    pendientes.map {
+            // Lotes acotados para controlar el payload en conexiones inestables. Cada lote se
+            // confirma por separado: si la red se corta, lo ya aceptado queda guardado.
+            for (lote in syncQueueDao.listarPendientes().chunked(TAMANO_LOTE)) {
+                val request = SyncBatchRequest(
+                    lote.map {
                         SyncOperationDto(
                             opId = it.id.toString(),
                             tipo = it.tipo.name,
@@ -117,22 +119,24 @@ class AssetRepositoryImpl(
                         )
                     }
                 )
-                val aceptadas = api.sincronizar(lote).resultados
-                    .filter { it.aceptado }
-                    .map { it.opId }
-                    .toSet()
-                val (ok, fallidas) = pendientes.partition { it.id.toString() in aceptadas }
+                val resultados = api.sincronizar(request).resultados.associateBy { it.opId }
+                val (ok, fallidas) = lote.partition { resultados[it.id.toString()]?.aceptado == true }
 
                 assetDao.confirmOperations(ok)
-                fallidas.forEach { syncQueueDao.sumarIntento(it.id) }
-                enviadas = ok.size
-                rechazadas = fallidas.size
+                fallidas.forEach { op ->
+                    syncQueueDao.sumarIntento(op.id)
+                    rechazos += RechazoSync(
+                        op.assetId,
+                        resultados[op.id.toString()]?.motivo ?: "El servidor no confirmó la operación"
+                    )
+                }
+                enviadas += ok.size
             }
 
             val remotos = api.obtenerCambios(assetDao.lastSyncedUpdatedAt())
             val paraRevisar = assetDao.applyRemoteChanges(remotos.map { it.toEntity() })
 
-            Result.Success(SyncSummary(enviadas, rechazadas, remotos.size, paraRevisar))
+            Result.Success(SyncSummary(enviadas, rechazos, remotos.size, paraRevisar))
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
@@ -145,6 +149,10 @@ class AssetRepositoryImpl(
     }
 
     // -------------------------------------------------------------------- Helpers
+
+    private companion object {
+        const val TAMANO_LOTE = 50
+    }
 
     private fun payloadDe(dto: AssetDto): String = json.encodeToString(AssetDto.serializer(), dto)
 

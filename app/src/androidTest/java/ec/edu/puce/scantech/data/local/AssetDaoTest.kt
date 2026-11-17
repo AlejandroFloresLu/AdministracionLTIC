@@ -89,16 +89,19 @@ class AssetDaoTest {
     }
 
     @Test
-    fun editarAntesDeSubirMantieneUnaSolaOperacionDeAlta() = runBlocking {
-        dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A"), payload = "v1")
+    fun editarVariasVecesSinConexionEncolaCadaCambioEnOrden() = runBlocking {
+        dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A", actualizado = 1_000L), payload = "v1")
+        dao.updateWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A2", actualizado = 2_000L), payload = "v2")
+        dao.updateWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A3", actualizado = 3_000L), payload = "v3")
 
-        val ok = dao.updateWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A2"), payload = "v2")
-
-        assertTrue(ok)
-        val op = cola.listarPendientes().single()
-        assertEquals(SyncStatus.PENDING_CREATE, op.tipo)
-        assertEquals("v2", op.payload)
-        assertEquals("A2", dao.getById("1")?.name)
+        val ops = cola.listarPendientes()
+        assertEquals(listOf("v1", "v2", "v3"), ops.map { it.payload })
+        assertEquals(
+            listOf(SyncStatus.PENDING_CREATE, SyncStatus.PENDING_UPDATE, SyncStatus.PENDING_UPDATE),
+            ops.map { it.tipo }
+        )
+        // el servidor aún no conoce el activo: sigue como alta pendiente
+        assertEquals(SyncStatus.PENDING_CREATE, dao.getById("1")?.syncStatus)
     }
 
     @Test
@@ -112,13 +115,17 @@ class AssetDaoTest {
     }
 
     @Test
-    fun eliminarUnAltaNoSubidaNoDejaRastro() = runBlocking {
+    fun eliminarUnAltaNoSubidaTambienEsBorradoLogico() = runBlocking {
         dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A"), payload = "p")
 
         assertTrue(dao.deleteWithQueue("1", deletedAt = 9_000L, payload = "p"))
 
-        assertNull(dao.getById("1"))
-        assertTrue(cola.listarPendientes().isEmpty())
+        assertNull(dao.observeById("1").first())
+        assertEquals(9_000L, dao.getById("1")?.deletedAt)
+        assertEquals(
+            listOf(SyncStatus.PENDING_CREATE, SyncStatus.PENDING_DELETE),
+            cola.listarPendientes().map { it.tipo }
+        )
     }
 
     @Test
@@ -144,6 +151,17 @@ class AssetDaoTest {
         assertEquals(SyncStatus.SYNCED, dao.getById("1")?.syncStatus)
         assertNull(dao.getById("2"))
         assertTrue(cola.listarPendientes().isEmpty())
+    }
+
+    @Test
+    fun confirmarSoloElAltaDejaPendienteLaEdicionPosterior() = runBlocking {
+        dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A"), payload = "v1")
+        dao.updateWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A2"), payload = "v2")
+
+        dao.confirmOperations(cola.listarPendientes().take(1))
+
+        assertEquals(SyncStatus.PENDING_CREATE, dao.getById("1")?.syncStatus)
+        assertEquals(1, cola.listarPendientes().size)
     }
 
     @Test

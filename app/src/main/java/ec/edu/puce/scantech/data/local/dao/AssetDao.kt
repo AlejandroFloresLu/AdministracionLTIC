@@ -98,10 +98,6 @@ abstract class AssetDao {
     )
     abstract suspend fun markDeleted(id: String, deletedAt: Long): Int
 
-    /** Borrado físico; solo para activos que el servidor nunca llegó a conocer o ya dio de baja. */
-    @Query("DELETE FROM assets WHERE id = :id")
-    abstract suspend fun deletePermanently(id: String): Int
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsert(asset: AssetEntity)
 
@@ -145,8 +141,9 @@ abstract class AssetDao {
     }
 
     /**
-     * Guarda los cambios de un activo y deja **una sola** operación pendiente para él.
-     * Si el alta aún no se subió, la operación sigue siendo un alta con los datos nuevos.
+     * Guarda los cambios de un activo y encola una operación de actualización; las ediciones
+     * hechas sin conexión viajan en orden, no solo el último estado. Si el alta aún no se
+     * subió, el activo conserva PENDING_CREATE (el servidor todavía no lo conoce).
      * @return `false` si el activo no existe o ya está dado de baja.
      */
     @Transaction
@@ -160,14 +157,13 @@ abstract class AssetDao {
             SyncStatus.PENDING_UPDATE
         }
         update(asset.copy(syncStatus = estado, deletedAt = null))
-        clearQueueOf(asset.id)
-        enqueue(SyncOperationEntity(assetId = asset.id, tipo = estado, payload = payload, createdAt = asset.updatedAt))
+        enqueue(SyncOperationEntity(assetId = asset.id, tipo = SyncStatus.PENDING_UPDATE, payload = payload, createdAt = asset.updatedAt))
         return true
     }
 
     /**
-     * Da de baja un activo. Si nunca se subió al servidor se elimina sin dejar rastro;
-     * en caso contrario se marca como borrado y se encola la baja.
+     * Borrado lógico: oculta el activo, lo marca PENDING_DELETE y encola la baja. La fila solo
+     * se elimina físicamente cuando el servidor confirma (ver [confirmOperations]).
      * @return `false` si el activo no existe o ya estaba dado de baja.
      */
     @Transaction
@@ -175,13 +171,8 @@ abstract class AssetDao {
         val previo = getById(id)
         if (previo == null || previo.deletedAt != null) return false
 
-        clearQueueOf(id)
-        if (previo.syncStatus == SyncStatus.PENDING_CREATE) {
-            deletePermanently(id)
-        } else {
-            markDeleted(id, deletedAt)
-            enqueue(SyncOperationEntity(assetId = id, tipo = SyncStatus.PENDING_DELETE, payload = payload, createdAt = deletedAt))
-        }
+        markDeleted(id, deletedAt)
+        enqueue(SyncOperationEntity(assetId = id, tipo = SyncStatus.PENDING_DELETE, payload = payload, createdAt = deletedAt))
         return true
     }
 
