@@ -1,13 +1,21 @@
 package ec.edu.puce.scantech.domain.model
 
-import ec.edu.puce.scantech.data.local.SyncStatus
 import java.util.UUID
 
 /**
- * Activo del inventario tal como lo ven la UI y los ViewModels.
+ * [RDA-1 Tema 4: Componentes Fundamentales e Inmutabilidad]
+ * [RDA-3 Temas 9 y 10: Clean Architecture - Entidades de Dominio (Core)]
  *
- * Es inmutable: para cambiar un campo se usa `copy`. No conoce Room ni Retrofit; la
- * conversión desde/hacia `AssetEntity` y `AssetDto` vive en `data.mapper`.
+ * Modelo inmutable que representa un activo tecnológico del departamento de LTIC (PUCE).
+ *
+ * Conceptos Teóricos Aplicados:
+ * 1. Dominio Puro (Core Layer): Clase de datos Kotlin pura sin anotaciones de persistencia (@Entity)
+ *    ni serialización de red (@Serializable). Cero dependencias de Android framework o SQLite.
+ * 2. Inmutabilidad y Flujo Unidireccional (UDF): Todos sus campos son `val`. Las transformaciones
+ *    se realizan mediante copias explícitas (`copy`), eliminando efectos secundarios y garantizando
+ *    que la interfaz observe estados consistentes e incorruptibles.
+ * 3. Desacoplamiento de Infraestructura: La conversión hacia y desde entidades físicas (`AssetEntity`)
+ *    y DTOs remotos (`AssetDto`) se delega exclusivamente a la capa de datos (`data.mapper`).
  */
 data class Asset(
     val id: String = UUID.randomUUID().toString(),
@@ -26,7 +34,10 @@ data class Asset(
     val updatedAt: Long = System.currentTimeMillis(),
     val deletedAt: Long? = null
 ) {
-    /** Ubicación legible, p. ej. "Bloque A · Estante 3 · Casillero 2". */
+    /**
+     * Propiedad calculada que expone la ubicación estructurada del activo en bodegas LTIC.
+     * Ejemplo: "Bloque A · Estante 3 · Casillero 2".
+     */
     val location: String
         get() = "Bloque $block · Estante $shelf · Casillero $locker"
 }

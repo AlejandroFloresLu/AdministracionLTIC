@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.CloudDone
@@ -84,6 +85,7 @@ fun InventoryDashboardScreen(
     viewModel: InventoryViewModel,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToScanner: () -> Unit,
+    onNavigateToCreate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -107,6 +109,15 @@ fun InventoryDashboardScreen(
                         text = stringResource(R.string.inventory_title),
                         fontWeight = FontWeight.Bold
                     )
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToCreate) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "Nuevo Activo",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
