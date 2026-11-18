@@ -11,8 +11,10 @@ import ec.edu.puce.scantech.data.remote.SyncBatchResponse
 import ec.edu.puce.scantech.data.remote.SyncResultDto
 import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -172,6 +174,23 @@ class AssetRepositoryTest {
     fun guardarObservacionesDeUnActivoInexistenteDevuelveError() = runBlocking {
         assertTrue(repo.updateObservations("no-existe", "x") is Result.Error)
         assertEquals(0, repo.observePendingCount().first())
+    }
+
+    @Test
+    fun observeAssetsSeActualizaSoloCuandoCambiaLaBase() = runBlocking {
+        val catalogo = repo.observeAssets("dell", "Laptops")
+        assertTrue(catalogo.first().isEmpty())
+
+        // Se suscribe antes de escribir: Room debe volver a emitir por sí solo.
+        val siguiente = async { withTimeout(5_000) { catalogo.first { it.isNotEmpty() } } }
+        repo.create(nuevo("LTIC-000001", nombre = "Laptop Dell", categoria = "Laptops"))
+        repo.create(nuevo("LTIC-000002", nombre = "Mouse Dell", categoria = "Mouse"))
+
+        assertEquals(listOf("LTIC-000001"), siguiente.await().map { it.qrCode })
+
+        val creado = catalogo.first().single()
+        repo.delete(creado.id)
+        assertTrue(withTimeout(5_000) { catalogo.first { it.isEmpty() } }.isEmpty())
     }
 
     private fun nuevo(qr: String, nombre: String = "Activo", categoria: String = "Mouse") = Asset(
