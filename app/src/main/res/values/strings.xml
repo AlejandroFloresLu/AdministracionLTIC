@@ -34,6 +34,22 @@
     <string name="save_changes">Guardar</string>
     <string name="discard_changes">Descartar</string>
     <string name="back">Volver</string>
+    <string name="asset_detail_short_title">Ficha Técnica</string>
+    <string name="edit_asset">Editar activo</string>
+    <string name="delete_asset">Eliminar activo</string>
+    <string name="asset_not_found">No se encontró el activo con identificador %1$s en la base de datos local.</string>
+    <string name="detail_section_specs">Características técnicas</string>
+    <string name="detail_section_location">Ubicación</string>
+    <string name="detail_section_inventory">Inventario</string>
+    <string name="detail_label_qr">Código QR</string>
+    <string name="detail_label_color">Color</string>
+    <string name="detail_label_dimensions">Dimensiones</string>
+    <string name="detail_label_block">Bloque</string>
+    <string name="detail_label_shelf">Estante</string>
+    <string name="detail_label_locker">Casillero</string>
+    <string name="detail_label_category">Categoría</string>
+    <string name="detail_label_units">Unidades disponibles</string>
+    <string name="detail_not_registered">No registrado</string>
     <string name="flashlight">Linterna</string>
 
     <!-- Operational States -->
