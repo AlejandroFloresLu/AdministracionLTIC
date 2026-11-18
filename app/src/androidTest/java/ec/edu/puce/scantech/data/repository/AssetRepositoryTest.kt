@@ -142,6 +142,38 @@ class AssetRepositoryTest {
         assertEquals(listOf("LTIC-000002"), repo.observeAssets("gamer", "Teclado").first().map { it.qrCode })
     }
 
+    @Test
+    fun guardarObservacionesActualizaEncolaYNoTocaLaRed() = runBlocking {
+        val creado = (repo.create(nuevo("LTIC-000001")) as Result.Success).data
+
+        val resultado = repo.updateObservations(creado.id, "  Teclas flojas  ")
+
+        assertTrue(resultado is Result.Success)
+        val guardado = (resultado as Result.Success).data
+        assertEquals("Teclas flojas", guardado.observations)
+        assertEquals(10_000L, guardado.updatedAt)
+        // el alta todavía no se subió: se mantiene PENDING_CREATE
+        assertEquals(SyncStatus.PENDING_CREATE, guardado.syncStatus)
+        assertEquals("Teclas flojas", repo.observeById(creado.id).first()?.observations)
+        assertEquals(2, repo.observePendingCount().first())
+        assertEquals(0, api.lotes.size)
+    }
+
+    @Test
+    fun guardarObservacionesEnBlancoLasBorra() = runBlocking {
+        val creado = (repo.create(nuevo("LTIC-000001").copy(observations = "vieja")) as Result.Success).data
+
+        repo.updateObservations(creado.id, "   ")
+
+        assertNull(repo.observeById(creado.id).first()?.observations)
+    }
+
+    @Test
+    fun guardarObservacionesDeUnActivoInexistenteDevuelveError() = runBlocking {
+        assertTrue(repo.updateObservations("no-existe", "x") is Result.Error)
+        assertEquals(0, repo.observePendingCount().first())
+    }
+
     private fun nuevo(qr: String, nombre: String = "Activo", categoria: String = "Mouse") = Asset(
         qrCode = qr,
         name = nombre,
