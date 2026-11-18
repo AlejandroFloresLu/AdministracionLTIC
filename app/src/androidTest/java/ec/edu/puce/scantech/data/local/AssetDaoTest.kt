@@ -198,6 +198,77 @@ class AssetDaoTest {
         assertNull(dao.getById("2"))
     }
 
+    @Test
+    fun guardarObservacionesDeUnActivoSincronizadoLoPasaAPendingUpdateYEncola() = runBlocking {
+        dao.insert(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 1_000L))
+
+        val resultado = dao.updateObservationsWithQueue("1", "Pantalla rayada", updatedAt = 2_000L) { "obs:${it.observations}" }
+
+        val guardado = dao.getById("1")!!
+        assertEquals("Pantalla rayada", guardado.observations)
+        assertEquals(2_000L, guardado.updatedAt)
+        assertEquals(SyncStatus.PENDING_UPDATE, guardado.syncStatus)
+        assertEquals(guardado, resultado)
+        val op = cola.listarPendientes().single()
+        assertEquals(SyncStatus.PENDING_UPDATE, op.tipo)
+        assertEquals("obs:Pantalla rayada", op.payload)
+        assertEquals(2_000L, op.createdAt)
+    }
+
+    @Test
+    fun guardarObservacionesDeUnAltaNoSubidaMantienePendingCreate() = runBlocking {
+        dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "A", actualizado = 1_000L), payload = "alta")
+
+        dao.updateObservationsWithQueue("1", "Falta cable", updatedAt = 2_000L) { "obs" }
+
+        assertEquals(SyncStatus.PENDING_CREATE, dao.getById("1")?.syncStatus)
+        assertEquals(
+            listOf(SyncStatus.PENDING_CREATE, SyncStatus.PENDING_UPDATE),
+            cola.listarPendientes().map { it.tipo }
+        )
+    }
+
+    @Test
+    fun guardarObservacionesNoTocaElRestoDeCampos() = runBlocking {
+        dao.insert(activo(id = "1", qr = "LTIC-000001", nombre = "Original", estado = SyncStatus.SYNCED))
+
+        dao.updateObservationsWithQueue("1", "Nota", updatedAt = 2_000L) { "obs" }
+
+        val guardado = dao.getById("1")!!
+        assertEquals("Original", guardado.name)
+        assertEquals("LTIC-000001", guardado.qrCode)
+        assertEquals(1, guardado.units)
+    }
+
+    @Test
+    fun guardarObservacionesDeUnActivoBorradoOInexistenteNoHaceNada() = runBlocking {
+        dao.insert(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED))
+        dao.deleteWithQueue("1", deletedAt = 5_000L, payload = "baja")
+
+        assertNull(dao.updateObservationsWithQueue("1", "x", updatedAt = 6_000L) { "obs" })
+        assertNull(dao.updateObservationsWithQueue("no-existe", "x", updatedAt = 6_000L) { "obs" })
+
+        assertEquals(SyncStatus.PENDING_DELETE, dao.getById("1")?.syncStatus)
+        assertNull(dao.getById("1")?.observations)
+        assertEquals(listOf("baja"), cola.listarPendientes().map { it.payload })
+    }
+
+    @Test
+    fun siFallaElArmadoDelPayloadNoSeGuardaNadaPorqueEsUnaSolaTransaccion() = runBlocking {
+        dao.insert(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 1_000L))
+
+        val error = runCatching {
+            dao.updateObservationsWithQueue("1", "Nota", updatedAt = 2_000L) { error("payload inválido") }
+        }.exceptionOrNull()
+
+        assertNotNull(error)
+        val sinCambios = dao.getById("1")!!
+        assertNull(sinCambios.observations)
+        assertEquals(1_000L, sinCambios.updatedAt)
+        assertEquals(SyncStatus.SYNCED, sinCambios.syncStatus)
+        assertTrue(cola.listarPendientes().isEmpty())
+    }
+
     private fun activo(
         id: String,
         qr: String,

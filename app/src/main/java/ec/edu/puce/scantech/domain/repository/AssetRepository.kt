@@ -47,6 +47,12 @@ interface AssetRepository {
 
     suspend fun update(asset: Asset): Result<Asset>
 
+    /**
+     * Guarda solo las observaciones del activo y encola la actualización. Texto en blanco las
+     * borra (`null`). El activo pasa a PENDING_UPDATE salvo que siga como PENDING_CREATE.
+     */
+    suspend fun updateObservations(id: String, observations: String?): Result<Asset>
+
     suspend fun delete(id: String): Result<Unit>
 
     /** Sube la cola de pendientes y descarga cambios del servidor. */

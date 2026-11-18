@@ -11,7 +11,7 @@ import ec.edu.puce.scantech.data.repository.AssetRepositoryImpl
 import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.usecase.EliminarActivoUseCase
-import ec.edu.puce.scantech.domain.usecase.GuardarActivoUseCase
+import ec.edu.puce.scantech.domain.usecase.GuardarObservacionesUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivoPorIdUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +41,7 @@ class AssetDetailViewModel(
     private val assetId: String,
     private val obtenerActivoPorIdUseCase: ObtenerActivoPorIdUseCase,
     private val eliminarActivoUseCase: EliminarActivoUseCase,
-    private val guardarActivoUseCase: GuardarActivoUseCase,
+    private val guardarObservacionesUseCase: GuardarObservacionesUseCase,
     private val savedStateHandle: SavedStateHandle = SavedStateHandle()
 ) : ViewModel() {
 
@@ -77,21 +77,15 @@ class AssetDetailViewModel(
     }
 
     /**
-     * Actualiza las observaciones físicas del hardware en la base de datos local y encola
-     * la actualización en la estrategia Offline-First.
+     * Guarda las observaciones físicas del hardware en Room y encola la actualización
+     * (Offline-First). Solo se escriben las observaciones: el resto del activo no se toca.
+     * La ficha se refresca sola porque observa el Flow de Room.
      */
     fun updateObservaciones(nuevasObservaciones: String, onCompleted: () -> Unit = {}) {
-        val currentState = _uiState.value
-        if (currentState is AssetDetailUiState.Success) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val actualizado = currentState.asset.copy(
-                    observations = nuevasObservaciones,
-                    updatedAt = System.currentTimeMillis()
-                )
-                guardarActivoUseCase(actualizado, isEditMode = true)
-                withContext(Dispatchers.Main) {
-                    onCompleted()
-                }
+        if (_uiState.value !is AssetDetailUiState.Success) return
+        viewModelScope.launch {
+            if (guardarObservacionesUseCase(assetId, nuevasObservaciones) is Result.Success) {
+                onCompleted()
             }
         }
     }
@@ -134,7 +128,7 @@ class AssetDetailViewModel(
                     assetId = assetId,
                     obtenerActivoPorIdUseCase = ObtenerActivoPorIdUseCase(repository),
                     eliminarActivoUseCase = EliminarActivoUseCase(repository),
-                    guardarActivoUseCase = GuardarActivoUseCase(repository)
+                    guardarObservacionesUseCase = GuardarObservacionesUseCase(repository)
                 ) as T
             }
         }

@@ -89,6 +89,16 @@ class AssetRepositoryImpl(
         }
     }
 
+    override suspend fun updateObservations(id: String, observations: String?): Result<Asset> = local {
+        val texto = observations?.trim()?.takeIf { it.isNotEmpty() }
+        val actualizado = assetDao.updateObservationsWithQueue(id, texto, clock()) { payloadDe(it.toDto()) }
+        if (actualizado == null) {
+            Result.Error("El activo ya no existe")
+        } else {
+            Result.Success(actualizado.toDomain())
+        }
+    }
+
     override suspend fun delete(id: String): Result<Unit> = local {
         val previo = assetDao.getById(id)
         val ahora = clock()

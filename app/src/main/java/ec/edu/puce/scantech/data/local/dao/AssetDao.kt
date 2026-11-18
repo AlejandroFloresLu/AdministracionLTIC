@@ -101,6 +101,23 @@ abstract class AssetDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsert(asset: AssetEntity)
 
+    /**
+     * Cambia solo las observaciones de un activo no borrado, refresca [updatedAt] y aplica la
+     * regla de syncStatus: PENDING_CREATE se mantiene, cualquier otro pasa a PENDING_UPDATE.
+     * Usar desde [updateObservationsWithQueue] para que la operación quede encolada.
+     */
+    @Query(
+        """
+        UPDATE assets
+        SET observations = :observations,
+            updatedAt = :updatedAt,
+            syncStatus = CASE WHEN syncStatus = 'PENDING_CREATE' THEN 'PENDING_CREATE'
+                              ELSE 'PENDING_UPDATE' END
+        WHERE id = :id AND deletedAt IS NULL
+        """
+    )
+    abstract suspend fun setObservations(id: String, observations: String?, updatedAt: Long): Int
+
     // ------------------------------------------------------ sync_queue (uso transaccional)
 
     @Insert
@@ -159,6 +176,28 @@ abstract class AssetDao {
         update(asset.copy(syncStatus = estado, deletedAt = null))
         enqueue(SyncOperationEntity(assetId = asset.id, tipo = SyncStatus.PENDING_UPDATE, payload = payload, createdAt = asset.updatedAt))
         return true
+    }
+
+    /**
+     * Guarda observaciones (Estrategia de Datos §3.b) en una sola transacción: actualiza el
+     * registro, refresca `updatedAt`, aplica la regla de syncStatus y encola un PENDING_UPDATE.
+     * A diferencia de [updateWithQueue], no reescribe el resto de campos, así que no pisa
+     * cambios hechos por otra pantalla o por la sincronización.
+     *
+     * @param payload arma el JSON a encolar a partir del registro ya actualizado.
+     * @return el activo actualizado, o `null` si no existe o está dado de baja (no se encola nada).
+     */
+    @Transaction
+    open suspend fun updateObservationsWithQueue(
+        id: String,
+        observations: String?,
+        updatedAt: Long,
+        payload: (AssetEntity) -> String
+    ): AssetEntity? {
+        if (setObservations(id, observations, updatedAt) == 0) return null
+        val actualizado = getById(id) ?: return null
+        enqueue(SyncOperationEntity(assetId = id, tipo = SyncStatus.PENDING_UPDATE, payload = payload(actualizado), createdAt = updatedAt))
+        return actualizado
     }
 
     /**
