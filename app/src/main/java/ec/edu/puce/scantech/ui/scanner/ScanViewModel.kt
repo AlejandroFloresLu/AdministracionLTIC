@@ -2,7 +2,11 @@ package ec.edu.puce.scantech.ui.scanner
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,12 +32,17 @@ import kotlinx.coroutines.flow.stateIn
  *    con el inventario general (`InventoryViewModel`).
  */
 class ScanViewModel(
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     companion object {
         private const val KEY_FLASHLIGHT = "key_scan_flashlight_state"
         private const val KEY_SCAN_PAUSED = "key_scan_paused_state"
+
+        /** No necesita repositorio: solo recibe el [SavedStateHandle] del sistema. */
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer { ScanViewModel(createSavedStateHandle()) }
+        }
     }
 
     // Flujos respaldados en disco/bundle por SavedStateHandle

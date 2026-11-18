@@ -62,7 +62,7 @@ fun ScannerScreen(
     onBarcodeDetected: (String) -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: ScanViewModel = viewModel()
+    viewModel: ScanViewModel = viewModel(factory = ScanViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 

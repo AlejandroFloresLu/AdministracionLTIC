@@ -1,13 +1,13 @@
 package ec.edu.puce.scantech.ui.form
 
-import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import ec.edu.puce.scantech.data.local.AppDatabase
-import ec.edu.puce.scantech.data.remote.RetrofitClient
-import ec.edu.puce.scantech.data.repository.AssetRepositoryImpl
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.usecase.GuardarActivoUseCase
@@ -48,7 +48,7 @@ class AssetFormViewModel(
     val assetId: String?,
     private val guardarActivoUseCase: GuardarActivoUseCase,
     private val obtenerActivoPorIdUseCase: ObtenerActivoPorIdUseCase,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     companion object {
@@ -66,27 +66,19 @@ class AssetFormViewModel(
         private const val KEY_INITIALIZED = "form_initialized_from_db"
 
         /**
-         * Factory modular para instanciar [AssetFormViewModel] con sus casos de uso.
+         * Factory que arma los casos de uso con el repositorio compartido del
+         * [ec.edu.puce.scantech.di.AppContainer]. El [SavedStateHandle] viene de
+         * `createSavedStateHandle()`, así el borrador sobrevive a la muerte del proceso.
          */
-        fun provideFactory(
-            context: Context,
-            assetId: String?
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val database = AppDatabase.obtener(context)
-                val api = RetrofitClient.crearAssetApi("https://api.scantech.puce.edu.ec/")
-                val repository = AssetRepositoryImpl(
-                    assetDao = database.assetDao(),
-                    syncQueueDao = database.syncQueueDao(),
-                    api = api
-                )
-
-                return AssetFormViewModel(
+        fun provideFactory(assetId: String?): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val repository = appContainer().assetRepository
+                AssetFormViewModel(
                     assetId = assetId,
                     guardarActivoUseCase = GuardarActivoUseCase(repository),
-                    obtenerActivoPorIdUseCase = ObtenerActivoPorIdUseCase(repository)
-                ) as T
+                    obtenerActivoPorIdUseCase = ObtenerActivoPorIdUseCase(repository),
+                    savedStateHandle = createSavedStateHandle()
+                )
             }
         }
     }

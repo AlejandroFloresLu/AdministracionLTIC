@@ -1,6 +1,5 @@
 package ec.edu.puce.scantech.ui.inventory
 
-import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -8,9 +7,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import ec.edu.puce.scantech.data.local.AppDatabase
-import ec.edu.puce.scantech.data.remote.RetrofitClient
-import ec.edu.puce.scantech.data.repository.AssetRepositoryImpl
+import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -110,14 +107,10 @@ class InventoryViewModel(
         /** Valor del chip que desactiva el filtro por categoría (coincide con `R.string.category_all`). */
         const val CATEGORIA_TODAS = "Todos"
 
-        fun provideFactory(context: Context): ViewModelProvider.Factory = viewModelFactory {
+        /** Factory que toma el repositorio compartido del [ec.edu.puce.scantech.di.AppContainer]. */
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val database = AppDatabase.obtener(context.applicationContext)
-                val repository = AssetRepositoryImpl(
-                    assetDao = database.assetDao(),
-                    syncQueueDao = database.syncQueueDao(),
-                    api = RetrofitClient.crearAssetApi("https://api.scantech.puce.edu.ec/")
-                )
+                val repository = appContainer().assetRepository
                 InventoryViewModel(
                     savedStateHandle = createSavedStateHandle(),
                     obtenerActivosUseCase = ObtenerActivosUseCase(repository)

@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -97,9 +96,8 @@ fun AssetDetailScreen(
     onNavigateToEdit: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val viewModel: AssetDetailViewModel = viewModel(
-        factory = AssetDetailViewModel.provideFactory(context, assetId),
+        factory = AssetDetailViewModel.provideFactory(assetId),
         key = "AssetDetailViewModel_$assetId"
     )
 
