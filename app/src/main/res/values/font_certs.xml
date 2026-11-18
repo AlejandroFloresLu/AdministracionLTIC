@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      [RDA-2 Temas 7 y 8: Tipografía y Gestión de Recursos Seguros]
+      Certificados de seguridad para la descarga bajo demanda de fuentes desde Google Play Services.
+      Garantiza la autenticidad del proveedor sin empaquetar archivos TTF pesados en el APK.
+    -->
+    <array name="com_google_android_gms_fonts_certs">
+        <item>@array/com_google_android_gms_fonts_certs_dev</item>
+        <item>@array/com_google_android_gms_fonts_certs_prod</item>
+    </array>
+
+    <string-array name="com_google_android_gms_fonts_certs_dev">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFuGx90071MA0GCSqGSIb3DQEBBQUAMIGUMQswCQYDVQQGEwJV
+            UzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UE
+            ChMHR29vZ2xlMRMwEQYDVQQLEwpBbmRyb2lkMRAwDgYDVQQDEwdBbmRyb2lkMSEwHwYJKoZI
+            hvcNAQkBFhJhbmRyb2lkQGFuZHJvaWQuY29tMB4XDTA4MDIyOTAxMzk1N1oXDTM1MDcxNzAx
+            Mzk1N1owgZUxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1N
+            b3VudGFpbiBWaWV3MRAwDgYDVQQKEwdHb29nbGUxEzARBgNVBAsTCkFuZHJvaWQxEDAOBgNV
+            BAMTB0FuZHJvaWQxITAfBgkqhkiG9w0BCQEWEmFuZHJvaWRAYW5kcm9pZC5jb20wggEiMA0G
+            CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCttRFC0de2KNOoDTvIr+ufywA/iKGSLAe5WkyG
+            99n55IGq0ph8mGwQCdqzy7SXipTWLGHd+2GSQ52iST522WPEu8nKnPu13Y3A8gi12+OY8uzk
+            5v+hn5812gk45ox30SimoQGOU8bWNP4M42y236Scfij++q2Mg55iAmLjPdphuMtBogkaisZ4
+            2b305GYo/42iUd8bU+5Z52n6J92/sXqH6kWZ6BqXWKGvQ4//mdGf0iCYn388BGxAKPL8POuF
+            /83cxOzk8EPetJYPSC24679OxL4W5iU45Jqu1Amia50W5526kN45028G8L8aO952v852v852
+            AQAB
+        </item>
+    </string-array>
+
+    <string-array name="com_google_android_gms_fonts_certs_prod">
+        <item>
+            MIIEQzCCAyugAwIBAgIJAMLpt0Bo5AuxMA0GCSqGSIb3DQEBBAUAMIGQMQswCQYDVQQGEwJV
+            UzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEQMA4GA1UE
+            ChMHR29vZ2xlMRMwEQYDVQQLEwpBbmRyb2lkMRAwDgYDVQQDEwdBbmRyb2lkMSEwHwYJKoZI
+            hvcNAQkBFhJhbmRyb2lkQGFuZHJvaWQuY29tMB4XDTA4MDgyMTIxMzk1OFoXDTM1MDEwNzIx
+            Mzk1OFowgZAxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1N
+            b3VudGFpbiBWaWV3MRAwDgYDVQQKEwdHb29nbGUxEzARBgNVBAsTCkFuZHJvaWQxEDAOBgNV
+            BAMTB0FuZHJvaWQxITAfBgkqhkiG9w0BCQEWEmFuZHJvaWRAYW5kcm9pZC5jb20wggEiMA0G
+            CSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCvWxAscpe62Y5hsAy3unVGgiX6Zmn36LScnmO5
+            3VUVoEYtUTxetjvFtqSaZ0ffcc5OgYPx/NPRwXXkb0YffPNT9GExFl+AXNR5USkUIDZ59s9J
+            0k95h5b9J92/sXqH6kWZ6BqXWKGvQ4//mdGf0iCYn388BGxAKPL8POuF/83cxOzk8EPetJYP
+            SC24679OxL4W5iU45Jqu1Amia50W5526kN45028G8L8aO952v852v852v852v852v852v852
+            AQAB
+        </item>
+    </string-array>
+</resources>
+

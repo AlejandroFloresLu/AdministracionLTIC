@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedCard
@@ -35,16 +36,19 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -52,25 +56,102 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import ec.edu.puce.scantech.R
 import ec.edu.puce.scantech.data.local.SyncStatus
 import ec.edu.puce.scantech.data.model.EstadoOperativo
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.ui.components.EmptyState
+import ec.edu.puce.scantech.ui.components.ErrorState
+import ec.edu.puce.scantech.ui.components.LoadingIndicator
 import ec.edu.puce.scantech.ui.inventory.EstadoOperativoBadge
 import ec.edu.puce.scantech.ui.inventory.InventoryViewModel
 import ec.edu.puce.scantech.ui.inventory.SyncBadge
 import ec.edu.puce.scantech.ui.theme.ScanTechTheme
 
 /**
- * Ficha Técnica del activo (#6) — composable **Stateful**.
+ * [RDA-1 Tema 4: Persistencia con rememberSaveable y Ciclo de Vida]
+ * [RDA-1 Tema 5: UI Declarativa - State Hoisting (Stateful vs Stateless)]
+ * [RDA-2 Tema 7 y 8: Sistema Material Design 3, Jerarquía Tipográfica y Tokens Semánticos]
+ * [RDA-3 Temas 9 y 10: MVVM + UDF con Sealed Interface y ViewModel Desacoplado]
+ * [RDA-3 Temas 11 y 12: Offline-First con Room como SSOT y Baja Lógica]
  *
- * Obtiene el activo desde el ViewModel, guarda el borrador de observaciones con
- * [rememberSaveable] y delega todo el dibujo en [AssetDetailContent] (elevación de estado).
+ * Pantalla de Ficha Técnica del Activo Tecnológico (Módulo de Detalle & Auditoría).
  *
- * [onEditar] y [onEliminar] son opcionales: mientras sean `null` los botones se muestran
- * deshabilitados. Se conectan cuando existan el Formulario (#55) y el diálogo de
- * confirmación de baja (#13).
+ * Conceptos Teóricos Aplicados:
+ * 1. Desacoplamiento de ViewModel (SoC - Tarea #58): La pantalla consume de forma primaria su
+ *    propio [AssetDetailViewModel], eliminando el acoplamiento cruzado con `InventoryViewModel`.
+ * 2. Máquina de Estados Finita: La UI es función pura del estado [AssetDetailUiState] evaluado de forma
+ *    exhaustiva (`when (state)`: Loading, Error, Success).
+ * 3. State Hoisting (RDA-1 Tema 5): Se separa el contenedor [AssetDetailScreen] (stateful) del
+ *    contenido reutilizable [AssetDetailContent] (stateless).
+ * 4. Resiliencia ante Rotación (RDA-1 Tema 4): El borrador de observaciones en edición se guarda
+ *    en el bundle local mediante [rememberSaveable].
+ * 5. Material You & Tokens Semánticos (RDA-2 Tema 7 y 8): Cero colores fijos; todos los contrastes
+ *    se calculan sobre `MaterialTheme.colorScheme`.
+ */
+@Composable
+fun AssetDetailScreen(
+    assetId: String,
+    onNavigateBack: () -> Unit,
+    onNavigateToEdit: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val viewModel: AssetDetailViewModel = viewModel(
+        factory = AssetDetailViewModel.provideFactory(context, assetId),
+        key = "AssetDetailViewModel_$assetId"
+    )
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    when (val state = uiState) {
+        is AssetDetailUiState.Loading -> {
+            Scaffold { innerPadding ->
+                LoadingIndicator(
+                    modifier = Modifier.padding(innerPadding),
+                    mensaje = "Cargando ficha técnica del hardware..."
+                )
+            }
+        }
+
+        is AssetDetailUiState.Error -> {
+            Scaffold(
+                topBar = {
+                    DetailTopAppBar(
+                        title = stringResource(R.string.asset_detail_short_title),
+                        onNavigateBack = onNavigateBack
+                    )
+                }
+            ) { innerPadding ->
+                ErrorState(
+                    mensaje = state.mensaje,
+                    onRetry = onNavigateBack,
+                    modifier = Modifier.padding(innerPadding)
+                )
+            }
+        }
+
+        is AssetDetailUiState.Success -> {
+            AssetDetailContent(
+                asset = state.asset,
+                onNavigateBack = onNavigateBack,
+                onNavigateToEdit = { onNavigateToEdit(state.asset.id) },
+                onSaveObservations = { nuevasObs ->
+                    viewModel.updateObservaciones(nuevasObs)
+                },
+                onDeleteConfirmed = {
+                    viewModel.eliminarActivo(onSuccess = onNavigateBack)
+                },
+                modifier = modifier
+            )
+        }
+    }
+}
+
+/**
+ * Sobrecarga compatible con [InventoryViewModel] para interoperabilidad y previsualizaciones.
  */
 @Composable
 fun AssetDetailScreen(
@@ -94,49 +175,47 @@ fun AssetDetailScreen(
 
     val estadoOperativo = viewModel.getActivoById(assetId)?.estadoOperativo
 
-    // Borrador de observaciones: sobrevive a la rotación de pantalla.
-    var observaciones by rememberSaveable(asset.id) {
-        mutableStateOf(asset.observations.orEmpty())
-    }
-
     AssetDetailContent(
         asset = asset,
         estadoOperativo = estadoOperativo,
-        observaciones = observaciones,
-        onObservacionesChange = { observaciones = it },
-        onGuardarObservaciones = {
-            viewModel.updateObservaciones(asset.id, observaciones)
+        onNavigateBack = onNavigateBack,
+        onNavigateToEdit = { onEditar?.invoke(asset.id) },
+        onSaveObservations = { nuevasObs ->
+            viewModel.updateObservaciones(asset.id, nuevasObs)
             onNavigateBack()
         },
-        onDescartar = onNavigateBack,
-        onNavigateBack = onNavigateBack,
-        onEditar = onEditar?.let { editar -> { editar(asset.id) } },
-        onEliminar = onEliminar?.let { eliminar -> { eliminar(asset.id) } },
+        onDeleteConfirmed = {
+            onEliminar?.invoke(asset.id)
+        },
         modifier = modifier
     )
 }
 
 /**
- * Ficha Técnica del activo — composable **Stateless**.
+ * Ficha Técnica del activo — composable **Stateless** (Elevación de Estado).
  *
- * Solo dibuja lo que recibe y avisa hacia arriba con eventos; no conoce al ViewModel.
- * Agrupa todos los campos del activo en tarjetas: identificación, características
- * técnicas, ubicación e inventario.
+ * Solo dibuja lo que recibe y notifica eventos hacia arriba; no conoce la implementación del ViewModel.
+ * Agrupa todos los campos del hardware en tarjetas semánticas: identificación, especificaciones técnicas,
+ * ubicación física, inventario y registro de observaciones de auditoría.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssetDetailContent(
     asset: Asset,
-    estadoOperativo: EstadoOperativo?,
-    observaciones: String,
-    onObservacionesChange: (String) -> Unit,
-    onGuardarObservaciones: () -> Unit,
-    onDescartar: () -> Unit,
     onNavigateBack: () -> Unit,
-    onEditar: (() -> Unit)?,
-    onEliminar: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    onNavigateToEdit: () -> Unit,
+    onSaveObservations: (String) -> Unit,
+    onDeleteConfirmed: () -> Unit,
+    modifier: Modifier = Modifier,
+    estadoOperativo: EstadoOperativo? = null
 ) {
+    // Persistencia del borrador de observaciones ante rotaciones de pantalla (RDA-1 Tema 4)
+    var observacionesText by rememberSaveable(asset.id) {
+        mutableStateOf(asset.observations.orEmpty())
+    }
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -158,18 +237,17 @@ fun AssetDetailContent(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { onEditar?.invoke() },
-                        enabled = onEditar != null
-                    ) {
+                    // Botón para navegar al formulario en modo edición (Tarea #55)
+                    IconButton(onClick = onNavigateToEdit) {
                         Icon(
                             imageVector = Icons.Rounded.Edit,
-                            contentDescription = stringResource(R.string.edit_asset)
+                            contentDescription = stringResource(R.string.edit_asset),
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
+                    // Botón para dar de baja lógica al activo (RDA-3 Tema 11 y 12)
                     IconButton(
-                        onClick = { onEliminar?.invoke() },
-                        enabled = onEliminar != null,
+                        onClick = { showDeleteDialog = true },
                         colors = IconButtonDefaults.iconButtonColors(
                             contentColor = MaterialTheme.colorScheme.error
                         )
@@ -195,8 +273,13 @@ fun AssetDetailContent(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            AssetHeaderCard(asset = asset, estadoOperativo = estadoOperativo)
+            // Tarjeta superior: Identificación, QR, Estado Operativo y Estado de Sincronización
+            AssetHeaderCard(
+                asset = asset,
+                estadoOperativo = estadoOperativo
+            )
 
+            // Tarjeta de Características Técnicas
             DetailSectionCard(
                 title = stringResource(R.string.detail_section_specs),
                 icon = Icons.Rounded.Memory
@@ -217,6 +300,7 @@ fun AssetDetailContent(
                 )
             }
 
+            // Tarjeta de Ubicación Física
             DetailSectionCard(
                 title = stringResource(R.string.detail_section_location),
                 icon = Icons.Rounded.Place
@@ -235,6 +319,7 @@ fun AssetDetailContent(
                 )
             }
 
+            // Tarjeta de Inventario y Disponibilidad
             DetailSectionCard(
                 title = stringResource(R.string.detail_section_inventory),
                 icon = Icons.Rounded.Inventory2
@@ -245,17 +330,48 @@ fun AssetDetailContent(
                 )
                 DetailFieldRow(
                     label = stringResource(R.string.detail_label_units),
-                    value = asset.units.toString()
+                    value = "${asset.units} unidades"
                 )
             }
 
+            // Sección de Observaciones de Auditoría Física
             ObservacionesSection(
-                observaciones = observaciones,
-                onObservacionesChange = onObservacionesChange,
-                onGuardar = onGuardarObservaciones,
-                onDescartar = onDescartar
+                observaciones = observacionesText,
+                onObservacionesChange = { observacionesText = it },
+                onGuardar = { onSaveObservations(observacionesText) },
+                onDescartar = {
+                    observacionesText = asset.observations.orEmpty()
+                    onNavigateBack()
+                }
             )
         }
+    }
+
+    // Diálogo de confirmación para borrado lógico (RDA-3 Temas 11 y 12)
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(text = "Dar de baja activo") },
+            text = {
+                Text(text = "¿Estás seguro de que deseas dar de baja el activo '${asset.name}'? Esta acción se registrará localmente y se sincronizará con el servidor.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDeleteConfirmed()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(text = "Dar de baja")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(text = "Cancelar")
+                }
+            }
+        )
     }
 }
 
@@ -282,6 +398,7 @@ private fun AssetHeaderCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Rounded.QrCode2,
@@ -297,6 +414,7 @@ private fun AssetHeaderCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (estadoOperativo != null) {
                     EstadoOperativoBadge(estado = estadoOperativo)
@@ -451,6 +569,30 @@ private fun AssetNotFoundContent(
     }
 }
 
+/** Barra de navegación superior para pantallas de detalle genéricas. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetailTopAppBar(
+    title: String,
+    onNavigateBack: () -> Unit
+) {
+    TopAppBar(
+        title = { Text(text = title, fontWeight = FontWeight.Bold) },
+        navigationIcon = {
+            IconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.back)
+                )
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface
+        )
+    )
+}
+
 /** Fila etiqueta / valor dentro de una tarjeta de la ficha. */
 @Composable
 fun DetailFieldRow(
@@ -514,13 +656,10 @@ private fun AssetDetailContentPreview() {
                 syncStatus = SyncStatus.PENDING_UPDATE
             ),
             estadoOperativo = EstadoOperativo.CRITICO,
-            observaciones = "Fuente redundante descalibrada.",
-            onObservacionesChange = {},
-            onGuardarObservaciones = {},
-            onDescartar = {},
             onNavigateBack = {},
-            onEditar = {},
-            onEliminar = {}
+            onNavigateToEdit = {},
+            onSaveObservations = {},
+            onDeleteConfirmed = {}
         )
     }
 }

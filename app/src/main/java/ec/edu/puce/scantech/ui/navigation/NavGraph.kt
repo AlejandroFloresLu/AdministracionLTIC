@@ -8,18 +8,26 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ec.edu.puce.scantech.ui.detail.AssetDetailScreen
+import ec.edu.puce.scantech.ui.form.AssetFormScreen
 import ec.edu.puce.scantech.ui.inventory.InventoryDashboardScreen
 import ec.edu.puce.scantech.ui.inventory.InventoryViewModel
 import ec.edu.puce.scantech.ui.permissions.CameraPermissionScreen
 import ec.edu.puce.scantech.ui.scanner.ScannerScreen
 
 /**
- * Grafo de Navegación Declarativo y Fuertemente Tipado (Type-Safe Navigation).
+ * [RDA-2 Temas 7 y 8: Navegación Progresiva y Fuertemente Tipada (Type-Safe Navigation)]
+ * [RDA-3 Temas 9 y 10: Desacoplamiento de Pantallas y Coordinación de Flujos]
  *
- * Implementa las directrices de la Tarea #2 y del Tema 2 de la cátedra:
- * - Un único NavHost para evitar comportamientos erráticos del Back Stack.
- * - Rutas tipadas usando la anotación `@Serializable` con el método `toRoute<T>()`.
- * - Cero uso de Strings mágicos en los destinos o paso de parámetros.
+ * Grafo de Navegación Declarativo y Fuertemente Tipado para ScanTech LTIC en Android 16 (API 36).
+ *
+ * Conceptos Teóricos Aplicados:
+ * 1. Single NavHost (Escenario Central): Existe un único contenedor dinámico que intercambia los
+ *    destinos visuales. Evita comportamientos anómalos o fugas en el Back Stack.
+ * 2. Navegación Fuertemente Tipada con @Serializable: Cada destino es una clase u objeto Kotlin serializable.
+ *    La deserialización automática con `backStackEntry.toRoute<T>()` valida los argumentos en compilación,
+ *    eliminando de raíz los errores por cadenas mágicas obsoletas ("asset/{id}").
+ * 3. Desacoplamiento de ViewModels (SoC): Cada pantalla (`ScannerScreen`, `AssetDetailScreen`,
+ *    `AssetFormScreen`) gestiona su propio ViewModel especializado con ciclo de vida independiente.
  */
 @Composable
 fun ScanTechNavGraph(
@@ -41,6 +49,9 @@ fun ScanTechNavGraph(
                 },
                 onNavigateToScanner = {
                     navController.navigate(NavRoute.CameraPermissionRoute)
+                },
+                onNavigateToCreate = {
+                    navController.navigate(NavRoute.AssetFormRoute(assetId = null))
                 }
             )
         }
@@ -49,7 +60,7 @@ fun ScanTechNavGraph(
         composable<NavRoute.CameraPermissionRoute> {
             CameraPermissionScreen(
                 onRequestPermission = {
-                    // Tras conceder el permiso, navega al escáner óptico
+                    // Tras conceder el permiso, transita al escáner óptico reemplazando la pantalla de permisos
                     navController.navigate(NavRoute.ScannerRoute) {
                         popUpTo<NavRoute.CameraPermissionRoute> { inclusive = true }
                     }
@@ -60,11 +71,11 @@ fun ScanTechNavGraph(
             )
         }
 
-        // Pantalla de Escáner Óptico de Códigos QR
+        // Pantalla de Escáner Óptico de Códigos QR (Edge AI)
         composable<NavRoute.ScannerRoute> {
             ScannerScreen(
                 onBarcodeDetected = { detectedId ->
-                    // Al decodificar el código QR, transita directamente a la Ficha Técnica del activo
+                    // Al decodificar el código QR, transita directamente a la Ficha Técnica del hardware
                     navController.navigate(NavRoute.AssetDetailRoute(assetId = detectedId)) {
                         popUpTo<NavRoute.ScannerRoute> { inclusive = true }
                     }
@@ -75,13 +86,30 @@ fun ScanTechNavGraph(
             )
         }
 
-        // Pantalla de Detalle y Ficha Técnica del Activo
+        // Pantalla de Ficha Técnica del Activo (Módulo de Detalle)
         composable<NavRoute.AssetDetailRoute> { backStackEntry ->
             val routeArgs = backStackEntry.toRoute<NavRoute.AssetDetailRoute>()
             AssetDetailScreen(
                 assetId = routeArgs.assetId,
-                viewModel = viewModel,
                 onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToEdit = { editAssetId ->
+                    navController.navigate(NavRoute.AssetFormRoute(assetId = editAssetId))
+                }
+            )
+        }
+
+        // Módulo de Registro / Formulario Ultra-Resiliente (Tarea #55 y Enunciado §3)
+        composable<NavRoute.AssetFormRoute> { backStackEntry ->
+            val routeArgs = backStackEntry.toRoute<NavRoute.AssetFormRoute>()
+            AssetFormScreen(
+                assetId = routeArgs.assetId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onSaveSuccess = {
+                    viewModel.loadActivos() // Refresca reactivamente el catálogo
                     navController.popBackStack()
                 }
             )
