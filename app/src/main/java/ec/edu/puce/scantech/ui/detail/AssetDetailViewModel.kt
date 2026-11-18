@@ -1,13 +1,13 @@
 package ec.edu.puce.scantech.ui.detail
 
-import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import ec.edu.puce.scantech.data.local.AppDatabase
-import ec.edu.puce.scantech.data.remote.RetrofitClient
-import ec.edu.puce.scantech.data.repository.AssetRepositoryImpl
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.usecase.EliminarActivoUseCase
@@ -42,7 +42,7 @@ class AssetDetailViewModel(
     private val obtenerActivoPorIdUseCase: ObtenerActivoPorIdUseCase,
     private val eliminarActivoUseCase: EliminarActivoUseCase,
     private val guardarObservacionesUseCase: GuardarObservacionesUseCase,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<AssetDetailUiState>(AssetDetailUiState.Loading)
@@ -107,29 +107,20 @@ class AssetDetailViewModel(
     }
 
     /**
-     * Factory para inicializar [AssetDetailViewModel] inyectando dependencias de la base local y casos de uso.
+     * Factory que arma los casos de uso con el repositorio compartido del
+     * [ec.edu.puce.scantech.di.AppContainer]; el ViewModel no crea Room ni Retrofit.
      */
     companion object {
-        fun provideFactory(
-            context: Context,
-            assetId: String
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val database = AppDatabase.obtener(context)
-                val api = RetrofitClient.crearAssetApi("https://api.scantech.puce.edu.ec/")
-                val repository = AssetRepositoryImpl(
-                    assetDao = database.assetDao(),
-                    syncQueueDao = database.syncQueueDao(),
-                    api = api
-                )
-
-                return AssetDetailViewModel(
+        fun provideFactory(assetId: String): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val repository = appContainer().assetRepository
+                AssetDetailViewModel(
                     assetId = assetId,
                     obtenerActivoPorIdUseCase = ObtenerActivoPorIdUseCase(repository),
                     eliminarActivoUseCase = EliminarActivoUseCase(repository),
-                    guardarObservacionesUseCase = GuardarObservacionesUseCase(repository)
-                ) as T
+                    guardarObservacionesUseCase = GuardarObservacionesUseCase(repository),
+                    savedStateHandle = createSavedStateHandle()
+                )
             }
         }
     }
