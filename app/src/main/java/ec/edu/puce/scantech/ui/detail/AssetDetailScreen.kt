@@ -66,7 +66,6 @@ import ec.edu.puce.scantech.ui.components.EmptyState
 import ec.edu.puce.scantech.ui.components.ErrorState
 import ec.edu.puce.scantech.ui.components.LoadingIndicator
 import ec.edu.puce.scantech.ui.inventory.EstadoOperativoBadge
-import ec.edu.puce.scantech.ui.inventory.InventoryViewModel
 import ec.edu.puce.scantech.ui.inventory.SyncBadge
 import ec.edu.puce.scantech.ui.theme.ScanTechTheme
 
@@ -148,47 +147,6 @@ fun AssetDetailScreen(
             )
         }
     }
-}
-
-/**
- * Sobrecarga compatible con [InventoryViewModel] para interoperabilidad y previsualizaciones.
- */
-@Composable
-fun AssetDetailScreen(
-    assetId: String,
-    viewModel: InventoryViewModel,
-    onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    onEditar: ((assetId: String) -> Unit)? = null,
-    onEliminar: ((assetId: String) -> Unit)? = null
-) {
-    val asset = viewModel.getAssetById(assetId)
-
-    if (asset == null) {
-        AssetNotFoundContent(
-            assetId = assetId,
-            onNavigateBack = onNavigateBack,
-            modifier = modifier
-        )
-        return
-    }
-
-    val estadoOperativo = viewModel.getActivoById(assetId)?.estadoOperativo
-
-    AssetDetailContent(
-        asset = asset,
-        estadoOperativo = estadoOperativo,
-        onNavigateBack = onNavigateBack,
-        onNavigateToEdit = { onEditar?.invoke(asset.id) },
-        onSaveObservations = { nuevasObs ->
-            viewModel.updateObservaciones(asset.id, nuevasObs)
-            onNavigateBack()
-        },
-        onDeleteConfirmed = {
-            onEliminar?.invoke(asset.id)
-        },
-        modifier = modifier
-    )
 }
 
 /**
@@ -535,37 +493,6 @@ private fun ObservacionesSection(
                 )
             }
         }
-    }
-}
-
-/** Estado vacío cuando el id recibido no corresponde a ningún activo. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AssetNotFoundContent(
-    assetId: String,
-    onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(R.string.asset_detail_short_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
-                    }
-                }
-            )
-        }
-    ) { innerPadding ->
-        EmptyState(
-            mensaje = stringResource(R.string.asset_not_found, assetId),
-            modifier = Modifier.padding(innerPadding)
-        )
     }
 }
 

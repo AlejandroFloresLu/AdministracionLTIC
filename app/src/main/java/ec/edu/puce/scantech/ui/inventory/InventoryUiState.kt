@@ -1,6 +1,6 @@
 package ec.edu.puce.scantech.ui.inventory
 
-import ec.edu.puce.scantech.data.model.ActivoLTIC
+import ec.edu.puce.scantech.domain.model.Asset
 
 /**
  * Máquina de estados finita (FSM) que modela el estado reactivo del Inventario en ScanTech LTIC.
@@ -21,11 +21,11 @@ sealed interface InventoryUiState {
     data object Loading : InventoryUiState
 
     /**
-     * Estado exitoso con la lista inmutable de activos recuperados y filtrados.
+     * Activos que cumplen el filtro actual. Room ya los devuelve filtrados (texto y categoría),
+     * así que la lista se muestra tal cual.
      */
     data class Success(
-        val activos: List<ActivoLTIC>,
-        val filteredActivos: List<ActivoLTIC> = activos
+        val activos: List<Asset>
     ) : InventoryUiState
 
     /**

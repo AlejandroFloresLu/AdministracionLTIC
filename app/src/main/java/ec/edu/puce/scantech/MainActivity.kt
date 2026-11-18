@@ -25,7 +25,9 @@ import ec.edu.puce.scantech.ui.theme.ScanTechTheme
  */
 class MainActivity : ComponentActivity() {
 
-    private val inventoryViewModel: InventoryViewModel by viewModels()
+    private val inventoryViewModel: InventoryViewModel by viewModels {
+        InventoryViewModel.provideFactory(applicationContext)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Habilitación de Edge-to-Edge nativo antes del setContent

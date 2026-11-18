@@ -109,7 +109,7 @@ fun ScanTechNavGraph(
                     navController.popBackStack()
                 },
                 onSaveSuccess = {
-                    viewModel.loadActivos() // Refresca reactivamente el catálogo
+                    // El catálogo observa Room: se actualiza solo, no hace falta recargarlo.
                     navController.popBackStack()
                 }
             )

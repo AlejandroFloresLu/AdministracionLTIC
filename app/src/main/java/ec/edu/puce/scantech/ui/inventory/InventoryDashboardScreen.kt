@@ -59,7 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ec.edu.puce.scantech.R
 import ec.edu.puce.scantech.data.local.SyncStatus
-import ec.edu.puce.scantech.data.model.ActivoLTIC
+import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.data.model.EstadoOperativo
 import ec.edu.puce.scantech.ui.components.EmptyState
 import ec.edu.puce.scantech.ui.components.ErrorState
@@ -183,18 +183,15 @@ fun InventoryDashboardScreen(
                     is InventoryUiState.Error -> {
                         ErrorState(
                             mensaje = state.mensaje,
-                            onRetry = { viewModel.loadActivos() }
+                            onRetry = viewModel::reintentar
                         )
                     }
 
                     is InventoryUiState.Success -> {
-                        if (state.filteredActivos.isEmpty()) {
+                        if (state.activos.isEmpty()) {
                             EmptyState(
                                 mensaje = stringResource(R.string.empty_inventory_description),
-                                onResetFilters = {
-                                    viewModel.clearSearchQuery()
-                                    viewModel.onCategorySelect("Todos")
-                                }
+                                onResetFilters = viewModel::limpiarFiltros
                             )
                         } else {
                             // Lista reciclada de alto rendimiento: LazyColumn (nunca Column + forEach)
@@ -209,7 +206,7 @@ fun InventoryDashboardScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(
-                                    items = state.filteredActivos,
+                                    items = state.activos,
                                     key = { it.id } // Clave única para recomposiciones inteligentes
                                 ) { activo ->
                                     ActivoCard(
@@ -331,11 +328,11 @@ fun CategoryFilterSection(
 /**
  * Card individual del Activo para el LazyColumn del Catálogo General.
  * Refleja fielmente el wireframe de la diapositiva 5:
- * Row: Icono representativo + Texto del activo + Badges de estado operativo y sincronización.
+ * Row: Icono representativo + Texto del activo + Badge de sincronización.
  */
 @Composable
 fun ActivoCard(
-    activo: ActivoLTIC,
+    activo: Asset,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -362,8 +359,8 @@ fun ActivoCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = getCategoryIcon(activo.categoria),
-                    contentDescription = activo.categoria,
+                    imageVector = getCategoryIcon(activo.category),
+                    contentDescription = activo.category,
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.size(24.dp)
                 )
@@ -376,7 +373,7 @@ fun ActivoCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = activo.nombre,
+                    text = activo.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -387,9 +384,11 @@ fun ActivoCard(
                 Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = "Serie: ${activo.serie} • ID: ${activo.id}",
+                    text = "QR: ${activo.qrCode} • ${activo.location}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -397,11 +396,6 @@ fun ActivoCard(
                 // Indicador de sincronización Offline-First
                 SyncBadge(status = activo.syncStatus)
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Badge semántico de Estado Operativo (Operativo / Advertencia / Crítico)
-            EstadoOperativoBadge(estado = activo.estadoOperativo)
         }
     }
 }

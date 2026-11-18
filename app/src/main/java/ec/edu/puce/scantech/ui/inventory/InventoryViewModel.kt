@@ -1,313 +1,128 @@
 package ec.edu.puce.scantech.ui.inventory
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import ec.edu.puce.scantech.data.local.SyncStatus
-import ec.edu.puce.scantech.data.mapper.toAsset
-import ec.edu.puce.scantech.data.model.ActivoLTIC
-import ec.edu.puce.scantech.data.model.EstadoOperativo
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import ec.edu.puce.scantech.data.local.AppDatabase
+import ec.edu.puce.scantech.data.remote.RetrofitClient
+import ec.edu.puce.scantech.data.repository.AssetRepositoryImpl
 import ec.edu.puce.scantech.domain.model.Asset
-import kotlinx.coroutines.Dispatchers
+import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
- * ViewModel que orquesta la lógica y el flujo de datos unidireccional (UDF) del Catálogo de Inventario.
+ * ViewModel del Catálogo de Inventario: búsqueda y filtros reactivos sobre Room
+ * (Estrategia de Datos §3.c).
  *
- * Buenas Prácticas Aplicadas:
- * 1. [SavedStateHandle]: Guarda y restaura de forma persistente la consulta de búsqueda y la categoría
- *    seleccionada para sobrevivir tanto a cambios de configuración (rotación) como a la muerte del
- *    proceso del sistema (Process Death - RDA-1 Tema 4).
- * 2. [Corrutinas en Dispatchers.IO]: Las operaciones de datos y filtrado pesado se delegan a hilos de E/S,
- *    garantizando 0 ms de bloqueo en el hilo principal y eliminando cualquier riesgo de ANR.
- * 3. [StateFlow inmutable]: Expone estados de UI inmutables para que la capa de presentación solo
- *    reaccione pasivamente a los cambios.
+ * Flujo:
+ * 1. [searchQuery] y [selectedCategory] viven en [SavedStateHandle], así sobreviven a la rotación
+ *    y a la muerte del proceso.
+ * 2. El texto pasa por `debounce` ([DEBOUNCE_BUSQUEDA_MS]) para no consultar Room en cada tecla;
+ *    borrar la búsqueda se aplica al instante. La categoría no lleva debounce (es un clic).
+ * 3. `combine` une texto y categoría; `flatMapLatest` cancela la consulta anterior y se suscribe
+ *    a la nueva. El filtrado lo hace SQLite (`AssetDao.observeAssets`), no la memoria.
+ * 4. Como Room devuelve un `Flow`, la lista se actualiza sola cuando cambia la base
+ *    (alta, edición, baja o sincronización), sin recargar a mano.
  */
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class InventoryViewModel(
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle()
+    private val savedStateHandle: SavedStateHandle,
+    private val obtenerActivosUseCase: ObtenerActivosUseCase
 ) : ViewModel() {
 
-    companion object {
-        private const val KEY_SEARCH_QUERY = "key_inventory_search_query"
-        private const val KEY_SELECTED_CATEGORY = "key_inventory_selected_category"
-    }
-
-    // Estado efímero blindado contra Process Death
     val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")
-    val selectedCategory: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SELECTED_CATEGORY, "Todos")
+    val selectedCategory: StateFlow<String> =
+        savedStateHandle.getStateFlow(KEY_SELECTED_CATEGORY, CATEGORIA_TODAS)
 
-    // Lista maestra de activos en memoria (en producción provista por Room DAO)
-    private val _masterActivos = MutableStateFlow<List<ActivoLTIC>>(emptyList())
+    /** Se incrementa en [reintentar] para volver a suscribirse a Room tras un error. */
+    private val reintentos = MutableStateFlow(0)
 
-    // Estado de UI expuesto mediante StateFlow
-    private val _uiState = MutableStateFlow<InventoryUiState>(InventoryUiState.Idle)
-    val uiState: StateFlow<InventoryUiState> = _uiState.asStateFlow()
+    private val textoConDebounce = searchQuery
+        .debounce { texto -> if (texto.isBlank()) 0L else DEBOUNCE_BUSQUEDA_MS }
+        .map { it.trim() }
+        .distinctUntilChanged()
 
-    init {
-        loadActivos()
-        observeFilters()
-    }
-
-    /**
-     * Carga inicial de activos tecnológicos simulando lectura desde Room en segundo plano.
-     */
-    fun loadActivos() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.value = InventoryUiState.Loading
-
-            try {
-                // Simulación de latencia de consulta local SQLite Room
-                val activos = getInitialMockActivos()
-                _masterActivos.value = activos
-                applyFilters(activos, searchQuery.value, selectedCategory.value)
-            } catch (e: Exception) {
-                _uiState.value = InventoryUiState.Error(
-                    mensaje = e.localizedMessage ?: "Error desconocido al acceder a la base local Room"
-                )
-            }
+    val uiState: StateFlow<InventoryUiState> =
+        combine(textoConDebounce, selectedCategory, reintentos) { texto, categoria, _ ->
+            Filtro(texto, categoria.takeUnless { it.equals(CATEGORIA_TODAS, ignoreCase = true) })
         }
-    }
-
-    /**
-     * Reacciona reactivamente a los cambios en la búsqueda o en el filtro de categorías.
-     */
-    private fun observeFilters() {
-        viewModelScope.launch {
-            combine(_masterActivos, searchQuery, selectedCategory) { activos, query, category ->
-                Triple(activos, query, category)
-            }.collect { (activos, query, category) ->
-                if (_uiState.value !is InventoryUiState.Loading && activos.isNotEmpty()) {
-                    withContext(Dispatchers.Default) {
-                        applyFilters(activos, query, category)
+            .flatMapLatest { filtro ->
+                obtenerActivosUseCase(query = filtro.texto, category = filtro.categoria)
+                    .map<List<Asset>, InventoryUiState> { InventoryUiState.Success(it) }
+                    .catch { e ->
+                        emit(InventoryUiState.Error(e.message ?: "No se pudo leer el inventario local"))
                     }
-                }
             }
-        }
-    }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = InventoryUiState.Loading
+            )
 
-    /**
-     * Aplica el filtrado por texto (búsqueda) y por categoría sin bloquear la UI.
-     */
-    private fun applyFilters(activos: List<ActivoLTIC>, query: String, category: String) {
-        val trimmedQuery = query.trim().lowercase()
-
-        val filtrados = activos.filter { activo ->
-            val matchCategory = category == "Todos" || activo.categoria.equals(category, ignoreCase = true)
-            val matchQuery = if (trimmedQuery.isEmpty()) {
-                true
-            } else {
-                activo.nombre.lowercase().contains(trimmedQuery) ||
-                        activo.serie.lowercase().contains(trimmedQuery) ||
-                        activo.id.lowercase().contains(trimmedQuery) ||
-                        activo.qrCode.lowercase().contains(trimmedQuery)
-            }
-            matchCategory && matchQuery
-        }
-
-        _uiState.value = InventoryUiState.Success(
-            activos = activos,
-            filteredActivos = filtrados
-        )
-    }
-
-    /**
-     * Actualiza la consulta de búsqueda y la persiste en [SavedStateHandle].
-     */
     fun onSearchQueryChange(newQuery: String) {
         savedStateHandle[KEY_SEARCH_QUERY] = newQuery
     }
 
-    /**
-     * Actualiza la categoría seleccionada y la persiste en [SavedStateHandle].
-     */
     fun onCategorySelect(newCategory: String) {
         savedStateHandle[KEY_SELECTED_CATEGORY] = newCategory
     }
 
-    /**
-     * Limpia la consulta de búsqueda.
-     */
     fun clearSearchQuery() {
         savedStateHandle[KEY_SEARCH_QUERY] = ""
     }
 
-    /**
-     * Busca un activo por su ID para navegar a la pantalla de detalle.
-     */
-    fun getActivoById(assetId: String): ActivoLTIC? {
-        return _masterActivos.value.find { it.id == assetId }
+    /** Vuelve a mostrar todo el catálogo: sin texto y con la categoría "Todos". */
+    fun limpiarFiltros() {
+        clearSearchQuery()
+        onCategorySelect(CATEGORIA_TODAS)
     }
 
-    /**
-     * Devuelve el activo como modelo de dominio [Asset] para la Ficha Técnica.
-     *
-     * Por ahora se arma a partir de los datos de prueba; cuando el catálogo lea de Room
-     * (#53) este método devolverá directamente el [Asset] del repositorio.
-     */
-    fun getAssetById(assetId: String): Asset? {
-        return getActivoById(assetId)?.toAsset()
+    /** Reintenta la consulta después de un error de lectura. */
+    fun reintentar() {
+        reintentos.value++
     }
 
-    /**
-     * Actualiza las observaciones físicas de un activo (cambio que marca el activo como PENDING_UPDATE
-     * dentro de la estrategia Offline-First).
-     */
-    fun updateObservaciones(assetId: String, newObservaciones: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val updatedList = _masterActivos.value.map { activo ->
-                if (activo.id == assetId) {
-                    activo.copy(
-                        observaciones = newObservaciones,
-                        syncStatus = SyncStatus.PENDING_UPDATE,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                } else {
-                    activo
-                }
+    private data class Filtro(val texto: String, val categoria: String?)
+
+    companion object {
+        private const val KEY_SEARCH_QUERY = "key_inventory_search_query"
+        private const val KEY_SELECTED_CATEGORY = "key_inventory_selected_category"
+
+        /** Espera tras la última tecla antes de consultar Room. */
+        const val DEBOUNCE_BUSQUEDA_MS = 300L
+
+        /** Valor del chip que desactiva el filtro por categoría (coincide con `R.string.category_all`). */
+        const val CATEGORIA_TODAS = "Todos"
+
+        fun provideFactory(context: Context): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val database = AppDatabase.obtener(context.applicationContext)
+                val repository = AssetRepositoryImpl(
+                    assetDao = database.assetDao(),
+                    syncQueueDao = database.syncQueueDao(),
+                    api = RetrofitClient.crearAssetApi("https://api.scantech.puce.edu.ec/")
+                )
+                InventoryViewModel(
+                    savedStateHandle = createSavedStateHandle(),
+                    obtenerActivosUseCase = ObtenerActivosUseCase(repository)
+                )
             }
-            _masterActivos.value = updatedList
-            applyFilters(updatedList, searchQuery.value, selectedCategory.value)
         }
-    }
-
-    /**
-     * Datos iniciales de activos LTIC basados en el documento maestro y las diapositivas de presentación.
-     */
-    private fun getInitialMockActivos(): List<ActivoLTIC> {
-        return listOf(
-            ActivoLTIC(
-                id = "LTIC-2048",
-                qrCode = "LTIC-2048",
-                nombre = "Laptop Dell Latitude 5440",
-                serie = "ABC123XYZ",
-                categoria = "Laptops",
-                marca = "Dell",
-                modelo = "Latitude 5440",
-                ram = "16GB DDR5",
-                cpu = "Intel Core i7-1365U",
-                ubicacion = "Bodega Central - Estante A1",
-                color = "Gris titanio",
-                dimensiones = "32.1 × 21.2 × 1.9 cm",
-                bloque = "A",
-                estante = "1",
-                casillero = "04",
-                unidades = 3,
-                observaciones = "Equipo con leve desgaste cosmético en la bisagra superior.",
-                estadoOperativo = EstadoOperativo.ADVERTENCIA,
-                syncStatus = SyncStatus.SYNCED
-            ),
-            ActivoLTIC(
-                id = "LTIC-000123",
-                qrCode = "LTIC-000123",
-                nombre = "Servidor HP ProLiant DL360 Gen10",
-                serie = "XYZ987SER",
-                categoria = "Servidores",
-                marca = "HP",
-                modelo = "ProLiant DL360 Gen10",
-                ram = "64GB ECC",
-                cpu = "Dual Intel Xeon Silver 4210R",
-                ubicacion = "Data Center LTIC - Rack 04",
-                color = "Negro",
-                dimensiones = "1U · 43.5 × 70.7 × 4.3 cm",
-                bloque = "Data Center",
-                estante = "Rack 04",
-                casillero = "U12",
-                unidades = 1,
-                observaciones = "Módulo de fuente redundante descalibrado, requiere reemplazo urgente.",
-                estadoOperativo = EstadoOperativo.CRITICO,
-                syncStatus = SyncStatus.PENDING_UPDATE
-            ),
-            ActivoLTIC(
-                id = "LTIC-000456",
-                qrCode = "LTIC-000456",
-                nombre = "Switch Cisco Catalyst 2960-X",
-                serie = "SW-001CISCO",
-                categoria = "Redes",
-                marca = "Cisco",
-                modelo = "Catalyst 2960-X 48 GigE",
-                ram = "512MB",
-                cpu = "APM86392 600MHz",
-                ubicacion = "Laboratorio Redes Piso 2",
-                color = "Azul y gris",
-                dimensiones = "44.5 × 27.9 × 4.4 cm",
-                bloque = "B",
-                estante = "2",
-                casillero = "07",
-                unidades = 2,
-                observaciones = "Puertos 1-48 validados con tráfico normal.",
-                estadoOperativo = EstadoOperativo.OPERATIVO,
-                syncStatus = SyncStatus.SYNCED
-            ),
-            ActivoLTIC(
-                id = "LTIC-000789",
-                qrCode = "LTIC-000789",
-                nombre = "Laptop Lenovo ThinkPad T14 Gen 4",
-                serie = "LEN-TP-8841",
-                categoria = "Laptops",
-                marca = "Lenovo",
-                modelo = "ThinkPad T14 Gen 4",
-                ram = "32GB LPDDR5",
-                cpu = "AMD Ryzen 7 PRO 7840U",
-                ubicacion = "Bodega Central - Estante A2",
-                color = "Negro",
-                dimensiones = "31.7 × 22.7 × 1.8 cm",
-                bloque = "A",
-                estante = "2",
-                casillero = "11",
-                unidades = 5,
-                observaciones = "Equipo nuevo recibido en recepción.",
-                estadoOperativo = EstadoOperativo.OPERATIVO,
-                syncStatus = SyncStatus.PENDING_CREATE
-            ),
-            ActivoLTIC(
-                id = "LTIC-000312",
-                qrCode = "LTIC-000312",
-                nombre = "Router Cisco 4331 ISR",
-                serie = "ISR-4331-K9",
-                categoria = "Redes",
-                marca = "Cisco",
-                modelo = "4331 Integrated Services Router",
-                ram = "4GB",
-                cpu = "Multi-Core x86",
-                ubicacion = "Armario de Comunicaciones Sótano",
-                color = "Gris",
-                dimensiones = "43.8 × 37.5 × 4.4 cm",
-                bloque = "Sótano",
-                estante = "Armario COM",
-                casillero = "02",
-                unidades = 1,
-                observaciones = "Ventilador secundario con ruido anómalo.",
-                estadoOperativo = EstadoOperativo.ADVERTENCIA,
-                syncStatus = SyncStatus.SYNCED
-            ),
-            ActivoLTIC(
-                id = "LTIC-000990",
-                qrCode = "LTIC-000990",
-                nombre = "Lector de Código de Barras Honeywell Xenon 1900",
-                serie = "HON-XEN-99",
-                categoria = "Periféricos",
-                marca = "Honeywell",
-                modelo = "Xenon 1900g SR",
-                ram = "N/A",
-                cpu = "Embedded",
-                ubicacion = "Mesa de Auditoría LTIC",
-                color = "Negro",
-                dimensiones = "17.5 × 7.1 × 10.2 cm",
-                bloque = "C",
-                estante = "Mesa de auditoría",
-                casillero = "01",
-                unidades = 4,
-                observaciones = "Cable USB reemplazado y calibrado.",
-                estadoOperativo = EstadoOperativo.OPERATIVO,
-                syncStatus = SyncStatus.SYNCED
-            )
-        )
     }
 }
