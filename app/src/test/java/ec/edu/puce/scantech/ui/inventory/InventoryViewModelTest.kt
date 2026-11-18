@@ -139,6 +139,50 @@ class InventoryViewModelTest {
         assertTrue(vm.uiState.value is InventoryUiState.Success)
     }
 
+    @Test
+    fun arrancaEnLoadingYLuegoMuestraLosDatosDeLaBase() = runTest(dispatcher) {
+        repo.base.value = listOf(activo("LTIC-000001", "Laptop Dell"))
+        assertEquals(InventoryUiState.Loading, vm.uiState.value)
+
+        observar()
+        advanceUntilIdle()
+
+        val estado = vm.uiState.value as InventoryUiState.Success
+        assertEquals(listOf("LTIC-000001"), estado.activos.map { it.qrCode })
+        assertEquals(false, estado.hayFiltros)
+    }
+
+    @Test
+    fun inventarioVacioSinFiltrosNoSeConfundeConSinResultados() = runTest(dispatcher) {
+        observar()
+        advanceUntilIdle()
+        val vacio = vm.uiState.value as InventoryUiState.Success
+        assertTrue(vacio.activos.isEmpty())
+        assertEquals("sin filtros: el inventario está vacío", false, vacio.hayFiltros)
+
+        repo.base.value = listOf(activo("LTIC-000001", "Laptop Dell"))
+        vm.onSearchQueryChange("cisco")
+        advanceUntilIdle()
+        val sinResultados = vm.uiState.value as InventoryUiState.Success
+        assertTrue(sinResultados.activos.isEmpty())
+        assertEquals("con filtro: no hay coincidencias", true, sinResultados.hayFiltros)
+
+        vm.limpiarFiltros()
+        advanceUntilIdle()
+        val todo = vm.uiState.value as InventoryUiState.Success
+        assertEquals(false, todo.hayFiltros)
+        assertEquals(1, todo.activos.size)
+    }
+
+    @Test
+    fun soloElegirCategoriaTambienCuentaComoFiltro() = runTest(dispatcher) {
+        observar()
+        vm.onCategorySelect("Servidores")
+        advanceUntilIdle()
+
+        assertEquals(true, (vm.uiState.value as InventoryUiState.Success).hayFiltros)
+    }
+
     /** `uiState` usa WhileSubscribed: hace falta un suscriptor para que consulte. */
     private fun TestScope.observar() {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }

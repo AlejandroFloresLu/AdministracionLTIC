@@ -61,7 +61,9 @@ class InventoryViewModel(
         }
             .flatMapLatest { filtro ->
                 obtenerActivosUseCase(query = filtro.texto, category = filtro.categoria)
-                    .map<List<Asset>, InventoryUiState> { InventoryUiState.Success(it) }
+                    .map<List<Asset>, InventoryUiState> {
+                        InventoryUiState.Success(activos = it, hayFiltros = filtro.activo)
+                    }
                     .catch { e ->
                         emit(InventoryUiState.Error(e.message ?: "No se pudo leer el inventario local"))
                     }
@@ -95,7 +97,9 @@ class InventoryViewModel(
         reintentos.value++
     }
 
-    private data class Filtro(val texto: String, val categoria: String?)
+    private data class Filtro(val texto: String, val categoria: String?) {
+        val activo: Boolean get() = texto.isNotEmpty() || categoria != null
+    }
 
     companion object {
         private const val KEY_SEARCH_QUERY = "key_inventory_search_query"
