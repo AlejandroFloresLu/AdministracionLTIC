@@ -1,51 +1,45 @@
 ---
 name: defensa-examen
 description: >-
-  Skill especializada para resolver casos de defensa práctica de Programación Móvil (ScanTech LTIC - PUCE).
-  Analiza el reto asignado por el docente, activa o adapta quirúrgicamente el código en la rama de trabajo,
-  verifica la compilación y genera el documento oficial de entrega (Evidencia_CasoX_Flores_Paul.md) con
-  capturas rotuladas, anexo de código y respuesta teórica de máximo 150 palabras.
+  Se activa con el comando '@examen' (ej. '@examen Caso 14' o '@examen [texto del reto]').
+  Resuelve de forma inmediata el caso asignado por el docente, elimina código comentado y basura,
+  compila el proyecto con Gradle y genera el informe Evidencia_CasoX_Flores_Paul.md para el EVA.
 ---
 
 # 🎓 Skill de Defensa Práctica de Examen — ScanTech LTIC (PUCE)
 
-Esta skill se activa cuando el estudiante recibe su **Hoja de Reto Individual** en la defensa de Programación Móvil y necesita resolver el caso de código y generar el documento de evidencia para el EVA en menos de 15 minutos.
+Esta skill se dispara cuando el usuario envía un mensaje que contiene el comando:
+```
+@examen Caso <X> [detalles o texto del reto]
+```
 
 ---
 
-## 📋 Protocolo de Ejecución Rápida (4 Pasos)
+## ⚡ Protocolo de Ejecución de Alta Velocidad
 
-### Paso 1: Análisis del Reto del Docente
-Cuando el usuario proporcione el caso (por número, texto copiado del PDF o imagen transcrita):
-1. Identificar el **Caso Asignado** y contrastarlo con el banco de 30 casos en `teoria/banco_30_casos_defensa_examen_fase1.md` y `teoria/guia_rapida_activacion_casos.md`.
-2. Detectar **variaciones específicas** introducidas por el docente (nombres de variables, parámetros nuevos, restricciones cromáticas o de arquitectura).
-3. Identificar la **Pregunta Teórica de Examen** y su límite estricto de palabras (**máximo 150 palabras**).
+### 1. Detección y Planificación Inmediata
+- Extraer el número del caso o el texto del reto pegado por el estudiante.
+- Ubicar los archivos y funciones correspondientes usando `teoria/guia_rapida_activacion_casos.md` y `teoria/banco_30_casos_defensa_examen_fase1.md`.
+- Si el docente modificó nombres de variables, rutas o condiciones respecto a los 30 casos estándar, adaptar el código a la variación exacta del profesor.
 
----
+### 2. Refactorización Quirúrgica Sin Basura (Regla Estricta)
+- **Activar** la implementación requerida para el caso.
+- **BORRAR DEFINITIVAMENTE:**
+  - El código anterior obsoleto (no dejarlo comentado).
+  - El bloque de envoltura `/* =================== [DEFENSA CASO X] =================== */`.
+  - Instrucciones de activación o textos de guía rápida dentro del archivo `.kt`.
+- **Resultado en el código:** El archivo debe quedar con la indentación perfecta, código de producción impecable y cero rastros de comentarios guía o código muerto, como si el estudiante lo hubiese redactado directamente frente al docente.
 
-### Paso 2: Aplicación Quirúrgica en Código
-1. **Localizar los archivos objetivo** (según la tabla de `teoria/guia_rapida_activacion_casos.md`).
-2. **Activar el cambio:**
-   - Si el caso ya tiene un bloque `/* =================== [DEFENSA CASO X] =================== */`, comentar el código original y descomentar el código del caso.
-   - Ajustar nombres de parámetros o rutas si el docente pidió una variante personalizada.
-   - Si requiere una rama separada (ej. si el profesor lo exige explícitamente), crear la rama `git checkout -b caso-<numero>` antes de editar. Si no lo exige, trabajar directamente sobre la rama actual.
-3. **Limpieza:** Dejar el código limpio, legible y sin bloques residuales que confundan al docente.
+### 3. Verificación de Compilación Automática
+- Ejecutar:
+  ```powershell
+  cd "c:\Users\ASUS\Documents\Proyectos Personales\Proyecto Programación Móvil Final\AdministracionLTIC"
+  .\gradlew assembleDebug
+  ```
+- Confirmar `BUILD SUCCESSFUL`.
 
----
-
-### Paso 3: Verificación Rápida de Compilación
-1. Ejecutar verificación de build en la terminal:
-   ```bash
-   cd "AdministracionLTIC"
-   .\gradlew assembleDebug
-   ```
-2. Garantizar que compile con `BUILD SUCCESSFUL` antes de dar por terminado el cambio.
-
----
-
-### Paso 4: Generación del Documento de Entrega EVA
-Generar inmediatamente el archivo Markdown en `teoria/entrega/Evidencia_Caso<Numero>_Flores_Paul.md` estructurado de acuerdo al **Protocolo Oficial de Evaluación del Docente**:
-
+### 4. Generación del Informe Oficial EVA
+Crear el archivo `teoria/entrega/Evidencia_Caso<Numero>_Flores_Paul.md`:
 ```markdown
 # PONTIFICIA UNIVERSIDAD CATÓLICA DEL ECUADOR
 ## FACULTAD DE INGENIERÍA · PROGRAMACIÓN MÓVIL
@@ -54,17 +48,17 @@ Generar inmediatamente el archivo Markdown en `teoria/entrega/Evidencia_Caso<Num
 **Estudiante:** Flores Ludeña Paúl Alejandro  
 **Fecha:** [Fecha actual]  
 **Proyecto:** ScanTech LTIC (Fase 1)  
-**Documento:** Evidencia_Caso<X>_Flores_Paul.pdf  
+**Documento para EVA:** Evidencia_Caso<X>_Flores_Paul.pdf  
 
 ---
 
 ## 1. 📱 Capturas de Pantalla de la Aplicación
 
-> **Instrucción para el estudiante:** Abre el emulador en la pantalla [Nombre de Pantalla], realiza la acción [Acción] y toma la captura.
+> **Instrucción para la captura:** Abre la aplicación en el emulador en la pantalla [Pantalla], realiza [Acción] y toma la captura.
 
-[Pegar aquí la Captura de Pantalla del Emulador]
+[Insertar captura aquí]
 
-**Figura 1:** [Rótulo formal obligatorio descriptivo de la acción y el parámetro renderizado].
+**Figura 1:** [Rótulo formal obligatorio describiendo la pantalla y el parámetro renderizado].
 
 ---
 
@@ -72,7 +66,7 @@ Generar inmediatamente el archivo Markdown en `teoria/entrega/Evidencia_Caso<Num
 
 ### Archivo: `app/src/main/java/ec/edu/puce/scantech/.../[NombreArchivo].kt`
 ```kotlin
-// Fragmento exacto del código refactorizado
+// Código final limpio
 ```
 
 ---
@@ -80,20 +74,13 @@ Generar inmediatamente el archivo Markdown en `teoria/entrega/Evidencia_Caso<Num
 ## 3. 💡 Sección de Respuesta Teórica (Máximo 150 palabras)
 
 **Pregunta de Examen:**
-> "[Pregunta textual formulada en el reto]"
+> "[Pregunta exacta del docente]"
 
 **Respuesta Técnica:**
-[Respuesta rigurosa, conceptual, directa y concisa basada en las diapositivas de teoría RDA-1, RDA-2 o RDA-3, con conteo estricto de menos de 150 palabras].
+[Respuesta formal de alto nivel técnico fundamentada en los RDA 1, 2 o 3, cumpliendo estrictamente con un máximo de 150 palabras].
 ```
 
----
-
-## 🧠 Banco de Conceptos Clave para Respuestas Teóricas
-
-- **Rutas Tipadas (@Serializable):** Seguridad de tipos en compilación (Type-Safety), elimina cadenas mágicas ("asset/{id}"), compatibilidad con KotlinX Serialization y deserialización directa con `toRoute<T>()`.
-- **Material Design 3 (Tokens Semánticos):** `tertiaryContainer` / `onTertiaryContainer` garantizan contraste WCAG AAA automático y accesibilidad tanto en modo claro como oscuro y Dynamic Color. Prohíbe colores hexadecimales quemados (`Color(0x...)`).
-- **UDF & Compose (UI = f(State)):** El estado fluye hacia abajo (StateFlow) y los eventos hacia arriba (callbacks). Compose recompone automáticamente los nodos que leen estados cambiados sin llamadas imperativas (`setEnabled()`).
-- **ViewModel Lifecycle vs Activity:** `onCleared()` se llama únicamente cuando el ViewModel es destruido definitivamente (navegación atrás o finish()). No se destruye en rotaciones porque el ViewModelStore sobrevive a través de `NonConfigurationInstances`.
-- **Null Safety Idiomático:** `toIntOrNull() ?: default` previene `NumberFormatException` y Fatal Crashes de la JVM en tiempo de ejecución, permitiendo manejar valores corruptos con valores de rescate limpios.
-- **Room SSOT & Soft Delete:** Room es la única fuente de verdad. El borrado lógico (`deletedAt != null`) oculta el registro de la UI pero preserva la fila en SQLite para poder encolar y sincronizar la orden de baja cuando haya red.
-
+### 5. Respuesta Inmediata en el Chat
+1. Lista de archivos modificados y confirmación de build exitoso.
+2. La respuesta teórica completa lista para responder oralmente si el profesor pregunta en vivo.
+3. Enlace directo al archivo `Evidencia_Caso<Numero>_Flores_Paul.md` para convertirlo a PDF y subirlo al EVA.
