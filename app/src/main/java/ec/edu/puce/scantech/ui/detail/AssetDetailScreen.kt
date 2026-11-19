@@ -25,25 +25,30 @@ import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +66,7 @@ import ec.edu.puce.scantech.R
 import ec.edu.puce.scantech.data.local.SyncStatus
 import ec.edu.puce.scantech.data.model.EstadoOperativo
 import ec.edu.puce.scantech.domain.model.Asset
+import ec.edu.puce.scantech.domain.validacion.ValidadorActivo
 import ec.edu.puce.scantech.ui.components.EmptyState
 import ec.edu.puce.scantech.ui.components.ErrorState
 import ec.edu.puce.scantech.ui.components.LoadingIndicator
@@ -84,8 +90,8 @@ import ec.edu.puce.scantech.ui.theme.ScanTechTheme
  *    exhaustiva (`when (state)`: Loading, Error, Success).
  * 3. State Hoisting (RDA-1 Tema 5): Se separa el contenedor [AssetDetailScreen] (stateful) del
  *    contenido reutilizable [AssetDetailContent] (stateless).
- * 4. Resiliencia ante Rotación (RDA-1 Tema 4): El borrador de observaciones en edición se guarda
- *    en el bundle local mediante [rememberSaveable].
+ * 4. Resiliencia ante Rotación (RDA-1 Tema 4): El borrador de observaciones vive en el estado del
+ *    [AssetDetailViewModel] respaldado por SavedStateHandle (sobrevive rotación y muerte del proceso).
  * 5. Material You & Tokens Semánticos (RDA-2 Tema 7 y 8): Cero colores fijos; todos los contrastes
  *    se calculan sobre `MaterialTheme.colorScheme`.
  */
@@ -102,6 +108,20 @@ fun AssetDetailScreen(
     )
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Feedback del guardado de observaciones (evento de un solo uso → Snackbar)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val mensajeGuardadas = stringResource(R.string.observations_saved)
+    val plantillaError = stringResource(R.string.observations_save_error)
+    LaunchedEffect(viewModel) {
+        viewModel.eventos.collect { evento ->
+            val mensaje = when (evento) {
+                ObservacionesEvento.Guardadas -> mensajeGuardadas
+                is ObservacionesEvento.Error -> plantillaError.format(evento.mensaje)
+            }
+            snackbarHostState.showSnackbar(mensaje)
+        }
+    }
 
     when (val state = uiState) {
         is AssetDetailUiState.Loading -> {
@@ -133,10 +153,17 @@ fun AssetDetailScreen(
         is AssetDetailUiState.Success -> {
             AssetDetailContent(
                 asset = state.asset,
+                observaciones = state.observacionesDraft,
+                puedeGuardarObservaciones = state.hayCambiosObservaciones && !state.isSavingObservaciones,
+                guardandoObservaciones = state.isSavingObservaciones,
+                snackbarHostState = snackbarHostState,
                 onNavigateBack = onNavigateBack,
                 onNavigateToEdit = { onNavigateToEdit(state.asset.id) },
-                onSaveObservations = { nuevasObs ->
-                    viewModel.updateObservaciones(nuevasObs)
+                onObservacionesChange = viewModel::onObservacionesChange,
+                onSaveObservations = viewModel::guardarObservaciones,
+                onDiscardObservations = {
+                    viewModel.descartarObservaciones()
+                    onNavigateBack()
                 },
                 onDeleteConfirmed = {
                     viewModel.eliminarActivo(onSuccess = onNavigateBack)
@@ -158,22 +185,24 @@ fun AssetDetailScreen(
 @Composable
 fun AssetDetailContent(
     asset: Asset,
+    observaciones: String,
+    puedeGuardarObservaciones: Boolean,
+    guardandoObservaciones: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: () -> Unit,
-    onSaveObservations: (String) -> Unit,
+    onObservacionesChange: (String) -> Unit,
+    onSaveObservations: () -> Unit,
+    onDiscardObservations: () -> Unit,
     onDeleteConfirmed: () -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     estadoOperativo: EstadoOperativo? = null
 ) {
-    // Persistencia del borrador de observaciones ante rotaciones de pantalla (RDA-1 Tema 4)
-    var observacionesText by rememberSaveable(asset.id) {
-        mutableStateOf(asset.observations.orEmpty())
-    }
-
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -292,13 +321,12 @@ fun AssetDetailContent(
 
             // Sección de Observaciones de Auditoría Física
             ObservacionesSection(
-                observaciones = observacionesText,
-                onObservacionesChange = { observacionesText = it },
-                onGuardar = { onSaveObservations(observacionesText) },
-                onDescartar = {
-                    observacionesText = asset.observations.orEmpty()
-                    onNavigateBack()
-                }
+                observaciones = observaciones,
+                puedeGuardar = puedeGuardarObservaciones,
+                guardando = guardandoObservaciones,
+                onObservacionesChange = onObservacionesChange,
+                onGuardar = onSaveObservations,
+                onDescartar = onDiscardObservations
             )
         }
     }
@@ -419,10 +447,15 @@ private fun DetailSectionCard(
     }
 }
 
-/** Campo de observaciones físicas con las acciones Descartar y Guardar. */
+/**
+ * Campo multilínea de observaciones físicas con contador de caracteres y las acciones
+ * Descartar y Guardar. Stateless: el texto y el estado de guardado vienen del ViewModel.
+ */
 @Composable
 private fun ObservacionesSection(
     observaciones: String,
+    puedeGuardar: Boolean,
+    guardando: Boolean,
     onObservacionesChange: (String) -> Unit,
     onGuardar: () -> Unit,
     onDescartar: () -> Unit,
@@ -432,25 +465,31 @@ private fun ObservacionesSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = stringResource(R.string.observations_label),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
         OutlinedTextField(
             value = observaciones,
             onValueChange = onObservacionesChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp),
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(text = stringResource(R.string.observations_label)) },
             placeholder = {
                 Text(
                     text = stringResource(R.string.observations_placeholder),
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
+            supportingText = {
+                Text(
+                    text = stringResource(
+                        R.string.observations_counter,
+                        observaciones.length,
+                        ValidadorActivo.MAX_OBSERVACIONES
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End
+                )
+            },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            minLines = 4,
+            maxLines = 8,
             shape = RoundedCornerShape(12.dp)
         )
 
@@ -460,6 +499,7 @@ private fun ObservacionesSection(
         ) {
             OutlinedButton(
                 onClick = onDescartar,
+                enabled = !guardando,
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp),
@@ -470,6 +510,7 @@ private fun ObservacionesSection(
 
             Button(
                 onClick = onGuardar,
+                enabled = puedeGuardar,
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp),
@@ -479,15 +520,25 @@ private fun ObservacionesSection(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Save,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
+                if (guardando) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalContentColor.current
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Save,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.size(6.dp))
                 Text(
-                    text = stringResource(R.string.save_changes),
-                    fontWeight = FontWeight.Bold
+                    text = stringResource(R.string.observations_save),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -580,11 +631,39 @@ private fun AssetDetailContentPreview() {
                 observations = "Fuente redundante descalibrada.",
                 syncStatus = SyncStatus.PENDING_UPDATE
             ),
+            observaciones = "Fuente redundante descalibrada.",
+            puedeGuardarObservaciones = false,
+            guardandoObservaciones = false,
             estadoOperativo = EstadoOperativo.CRITICO,
             onNavigateBack = {},
             onNavigateToEdit = {},
+            onObservacionesChange = {},
             onSaveObservations = {},
+            onDiscardObservations = {},
             onDeleteConfirmed = {}
         )
+    }
+}
+
+@Preview(name = "Campo de observaciones · claro", showBackground = true)
+@Preview(
+    name = "Campo de observaciones · oscuro",
+    showBackground = true,
+    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES
+)
+@Composable
+private fun ObservacionesSectionPreview() {
+    ScanTechTheme {
+        Surface {
+            ObservacionesSection(
+                observaciones = "Empaque abierto; bisagra izquierda floja.",
+                puedeGuardar = true,
+                guardando = false,
+                onObservacionesChange = {},
+                onGuardar = {},
+                onDescartar = {},
+                modifier = Modifier.padding(16.dp)
+            )
+        }
     }
 }

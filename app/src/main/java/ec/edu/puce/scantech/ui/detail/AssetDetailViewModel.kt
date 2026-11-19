@@ -13,11 +13,16 @@ import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.usecase.EliminarActivoUseCase
 import ec.edu.puce.scantech.domain.usecase.GuardarObservacionesUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivoPorIdUseCase
+import ec.edu.puce.scantech.domain.validacion.ValidadorActivo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -48,6 +53,13 @@ class AssetDetailViewModel(
     private val _uiState = MutableStateFlow<AssetDetailUiState>(AssetDetailUiState.Loading)
     val uiState: StateFlow<AssetDetailUiState> = _uiState.asStateFlow()
 
+    private val guardandoObservaciones = MutableStateFlow(false)
+
+    private val _eventos = Channel<ObservacionesEvento>(Channel.BUFFERED)
+
+    /** Resultado de cada guardado de observaciones, para mostrar un Snackbar una sola vez. */
+    val eventos: Flow<ObservacionesEvento> = _eventos.receiveAsFlow()
+
     init {
         observarActivo()
     }
@@ -58,34 +70,69 @@ class AssetDetailViewModel(
      */
     private fun observarActivo() {
         viewModelScope.launch {
-            obtenerActivoPorIdUseCase(assetId)
+            combine(
+                obtenerActivoPorIdUseCase(assetId),
+                savedStateHandle.getStateFlow<String?>(KEY_BORRADOR_OBSERVACIONES, null),
+                guardandoObservaciones
+            ) { asset, borrador, guardando -> Triple(asset, borrador, guardando) }
                 .catch { error ->
                     _uiState.value = AssetDetailUiState.Error(
                         mensaje = error.localizedMessage ?: "Error al consultar el activo en la base de datos"
                     )
                 }
-                .collect { asset ->
+                .collect { (asset, borrador, guardando) ->
                     if (asset == null) {
                         _uiState.value = AssetDetailUiState.Error(
                             mensaje = "El activo con ID $assetId no existe o fue dado de baja."
                         )
                     } else {
-                        _uiState.value = AssetDetailUiState.Success(asset = asset)
+                        val guardadas = asset.observations.orEmpty()
+                        // Sin cambios pendientes: se suelta el borrador para que el campo siga a Room.
+                        if (borrador != null && borrador == guardadas) {
+                            savedStateHandle[KEY_BORRADOR_OBSERVACIONES] = null
+                        }
+                        _uiState.value = AssetDetailUiState.Success(
+                            asset = asset,
+                            isDeleting = (_uiState.value as? AssetDetailUiState.Success)?.isDeleting ?: false,
+                            observacionesDraft = borrador ?: guardadas,
+                            isSavingObservaciones = guardando
+                        )
                     }
                 }
         }
     }
 
+    /** Actualiza el borrador de observaciones (limitado a [ValidadorActivo.MAX_OBSERVACIONES]). */
+    fun onObservacionesChange(texto: String) {
+        savedStateHandle[KEY_BORRADOR_OBSERVACIONES] = texto.take(ValidadorActivo.MAX_OBSERVACIONES)
+    }
+
+    /** Descarta el borrador y vuelve a mostrar las observaciones guardadas en Room. */
+    fun descartarObservaciones() {
+        savedStateHandle[KEY_BORRADOR_OBSERVACIONES] = null
+    }
+
     /**
      * Guarda las observaciones físicas del hardware en Room y encola la actualización
-     * (Offline-First). Solo se escriben las observaciones: el resto del activo no se toca.
-     * La ficha se refresca sola porque observa el Flow de Room.
+     * (Offline-First) mediante [GuardarObservacionesUseCase]. Solo se escriben las observaciones:
+     * el resto del activo no se toca. El SyncStatus nuevo llega solo porque la ficha observa Room.
      */
-    fun updateObservaciones(nuevasObservaciones: String, onCompleted: () -> Unit = {}) {
-        if (_uiState.value !is AssetDetailUiState.Success) return
+    fun guardarObservaciones() {
+        val estado = _uiState.value as? AssetDetailUiState.Success ?: return
+        if (guardandoObservaciones.value || !estado.hayCambiosObservaciones) return
+        guardandoObservaciones.value = true
         viewModelScope.launch {
-            if (guardarObservacionesUseCase(assetId, nuevasObservaciones) is Result.Success) {
-                onCompleted()
+            try {
+                when (val resultado = guardarObservacionesUseCase(assetId, estado.observacionesDraft)) {
+                    is Result.Success -> {
+                        // Se muestra el texto tal como quedó guardado (recortado) hasta que Room emita.
+                        savedStateHandle[KEY_BORRADOR_OBSERVACIONES] = resultado.data.observations.orEmpty()
+                        _eventos.send(ObservacionesEvento.Guardadas)
+                    }
+                    is Result.Error -> _eventos.send(ObservacionesEvento.Error(resultado.message))
+                }
+            } finally {
+                guardandoObservaciones.value = false
             }
         }
     }
@@ -111,6 +158,9 @@ class AssetDetailViewModel(
      * [ec.edu.puce.scantech.di.AppContainer]; el ViewModel no crea Room ni Retrofit.
      */
     companion object {
+        /** Clave del borrador en [SavedStateHandle]; `null` = sin cambios respecto a Room. */
+        private const val KEY_BORRADOR_OBSERVACIONES = "observaciones_borrador"
+
         fun provideFactory(assetId: String): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val repository = appContainer().assetRepository
