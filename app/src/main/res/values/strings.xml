@@ -31,6 +31,10 @@
     <string name="specifications_header">Especificaciones del Hardware</string>
     <string name="observations_label">Observaciones físicas del periférico</string>
     <string name="observations_placeholder">Registre desgaste, fisuras, estado de bisagras o incidencias físicas...</string>
+    <string name="observations_counter">%1$d/%2$d</string>
+    <string name="observations_save">Guardar observaciones</string>
+    <string name="observations_saved">Observaciones guardadas. Pendientes de sincronizar.</string>
+    <string name="observations_save_error">No se pudieron guardar las observaciones: %1$s</string>
     <string name="save_changes">Guardar</string>
     <string name="discard_changes">Descartar</string>
     <string name="back">Volver</string>
