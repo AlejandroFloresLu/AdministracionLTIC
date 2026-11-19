@@ -122,6 +122,17 @@ class AssetDetailViewModel(
         if (guardandoObservaciones.value || !estado.hayCambiosObservaciones) return
         guardandoObservaciones.value = true
         viewModelScope.launch {
+            /* =================== [DEFENSA CASO 19: Despacho en Dispatchers.IO en ViewModel] ===================
+            // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+            // Para asegurar aislamiento del hilo principal, envuelve la llamada del use case en:
+            // withContext(Dispatchers.IO) { ... }
+
+            // 💡 RESPUESTA TEÓRICA RÁPIDA:
+            // - Dispatchers.Main: Optimizado para manipulación de vistas de UI en el hilo principal (60/120 FPS).
+            // - Dispatchers.IO: Pool compartido de hilos elásticos optimizado para operaciones de bloqueo de entrada/salida
+            //   (I/O), como lecturas/escrituras en disco (Room/SQLite) y llamadas a red (Retrofit).
+            // - Previene el error ANR (Application Not Responding) que Android dispara si el Main Thread se bloquea >5 segundos.
+            ================================================================================================== */
             try {
                 when (val resultado = guardarObservacionesUseCase(assetId, estado.observacionesDraft)) {
                     is Result.Success -> {
@@ -152,6 +163,26 @@ class AssetDetailViewModel(
             }
         }
     }
+
+    /* =================== [DEFENSA CASO 16: Sobrescribir onCleared() para Auditoría de Ciclo de Vida] ===================
+    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+    // Descomenta este método override del ViewModel:
+    // override fun onCleared() {
+    //     super.onCleared()
+    //     val activoActual = (_uiState.value as? AssetDetailUiState.Success)?.asset
+    //     android.util.Log.i(
+    //         "ScanTech_Lifecycle",
+    //         "Auditoría: AssetDetailViewModel finalizado. Último activo inspeccionado: ${activoActual?.name ?: "ID: $assetId"}"
+    //     )
+    // }
+
+    // 💡 RESPUESTA TEÓRICA RÁPIDA:
+    // - 'onCleared()' se invoca ÚNICAMENTE cuando el ViewModel va a ser destruido definitivamente
+    //   (ej. el usuario navega hacia atrás o la actividad finaliza con 'finish()').
+    // - NO se ejecuta durante rotaciones de pantalla (Configuration Changes), ya que el ViewModelStore
+    //   retiene la instancia viva en memoria a través de NonConfigurationInstances.
+    // - Es el punto canónico para cancelar suscripciones manuales, cerrar conexiones abiertas o registrar auditoría.
+    ==================================================================================================================== */
 
     /**
      * Factory que arma los casos de uso con el repositorio compartido del

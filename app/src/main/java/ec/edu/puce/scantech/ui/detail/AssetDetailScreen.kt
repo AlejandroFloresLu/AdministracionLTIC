@@ -101,6 +101,11 @@ fun AssetDetailScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
     modifier: Modifier = Modifier
+    /* =================== [DEFENSA CASO 6: Parámetro modoAuditoria en Pantalla] ===================
+    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+    // Agrega coma arriba y descomenta este parámetro:
+    // , modoAuditoria: Boolean = false
+    ============================================================================================= */
 ) {
     val viewModel: AssetDetailViewModel = viewModel(
         factory = AssetDetailViewModel.provideFactory(assetId),
@@ -151,6 +156,23 @@ fun AssetDetailScreen(
         }
 
         is AssetDetailUiState.Success -> {
+            /* =================== [DEFENSA CASO 5: Desestructuración de Data Class Asset] ===================
+            // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+            // Descomenta este bloque de desestructuración y logging de auditoría:
+            // val (assetId, qrCode, nombre) = state.asset
+            // android.util.Log.d(
+            //     "ScanTech_Audit",
+            //     "Auditoría Ficha Abierta → ID=$assetId | QR=$qrCode | Nombre=$nombre"
+            // )
+
+            // 💡 RESPUESTA TEÓRICA RÁPIDA:
+            // - Las data classes generan automáticamente métodos 'component1()', 'component2()', ... 'componentN()'
+            //   basados estrictamente en el orden de las propiedades declaradas en el constructor primario.
+            // - La desestructuración permite descomponer un objeto en múltiples variables locales en una sola línea.
+            // - No se puede alterar el orden de asignación: 'val (a, b) = asset' siempre asignará component1() a 'a'
+            //   y component2() a 'b'.
+            ============================================================================================== */
+
             AssetDetailContent(
                 asset = state.asset,
                 observaciones = state.observacionesDraft,
@@ -222,6 +244,11 @@ fun AssetDetailContent(
                     }
                 },
                 actions = {
+                    /* =================== [DEFENSA CASO 6: Ocultar Edición en Modo Auditoría] ===================
+                    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+                    // Si se activa modoAuditoria, envuelve el IconButton de edición en:
+                    // if (!modoAuditoria) { ... }
+                    ============================================================================================= */
                     // Botón para navegar al formulario en modo edición (Tarea #55)
                     IconButton(onClick = onNavigateToEdit) {
                         Icon(
@@ -286,6 +313,32 @@ fun AssetDetailContent(
             }
 
             // Tarjeta de Ubicación Física
+            /* =================== [DEFENSA CASO 11: Color Semántico tertiaryContainer en Card] ===================
+            // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+            // Descomenta este ElevatedCard estilizado con roles semánticos de Material Theme 3:
+            // androidx.compose.material3.ElevatedCard(
+            //     colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            //         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            //         contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+            //     ),
+            //     shape = RoundedCornerShape(16.dp),
+            //     modifier = Modifier.fillMaxWidth()
+            // ) {
+            //     Column(modifier = Modifier.padding(20.dp)) {
+            //         Text(
+            //             text = asset.location,
+            //             style = MaterialTheme.typography.bodyLarge,
+            //             color = MaterialTheme.colorScheme.onTertiaryContainer
+            //         )
+            //     }
+            // }
+
+            // 💡 RESPUESTA TEÓRICA RÁPIDA:
+            // - Material 3 introduce roles de color semánticos (Primary, Secondary, Tertiary, Surface, Error)
+            //   con pares obligatorios de contraste (ej. 'tertiaryContainer' siempre se combina con 'onTertiaryContainer').
+            // - Prohíbe colores fijos en código: El uso de tokens dinámicos garantiza contraste WCAG AAA automático
+            //   tanto en Modo Claro como en Modo Oscuro y en Dynamic Color (Android 12+).
+            ===================================================================================================== */
             DetailSectionCard(
                 title = stringResource(R.string.detail_section_location),
                 icon = Icons.Rounded.Place
@@ -332,6 +385,7 @@ fun AssetDetailContent(
     }
 
     // Diálogo de confirmación para borrado lógico (RDA-3 Temas 11 y 12)
+    // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 14) ---
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -357,6 +411,27 @@ fun AssetDetailContent(
             }
         )
     }
+
+    /* =================== [DEFENSA CASO 14: Extraer Diálogo a Composable Stateless] ===================
+    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+    // 1. Comenta el bloque if (showDeleteDialog) de arriba.
+    // 2. Descomenta esta invocación y la función ConfirmarBajaDialog al final del archivo:
+    // if (showDeleteDialog) {
+    //     ConfirmarBajaDialog(
+    //         nombreActivo = asset.name,
+    //         onConfirmar = {
+    //             showDeleteDialog = false
+    //             onDeleteConfirmed()
+    //         },
+    //         onDismiss = { showDeleteDialog = false }
+    //     )
+    // }
+
+    // 💡 RESPUESTA TEÓRICA RÁPIDA:
+    // - State Hoisting (Elevación de Estado): Convierte componentes Stateful en funciones puras Stateless
+    //   que reciben estado por parámetros y comunican eventos mediante callbacks lambda.
+    // - Facilita tests de UI aislados, previsualizaciones @Preview y reutilización del diálogo en cualquier pantalla.
+    ================================================================================================== */
 }
 
 /** Tarjeta superior: nombre, código QR y estados del activo. */
@@ -391,12 +466,33 @@ private fun AssetHeaderCard(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
+                // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 13) ---
                 Text(
                     text = asset.qrCode,
                     style = MaterialTheme.typography.bodyLarge,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                /* =================== [DEFENSA CASO 13: Aplicar RobotoMonoFontFamily de Type.kt] ===================
+                // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+                // 1. Comenta el bloque Text() original de arriba.
+                // 2. Descomenta este Text() que consume la tipografía descargable definida en Type.kt:
+                // Text(
+                //     text = asset.qrCode,
+                //     style = MaterialTheme.typography.bodyLarge.copy(
+                //         fontFamily = ec.edu.puce.scantech.ui.theme.RobotoMonoFontFamily,
+                //         fontWeight = FontWeight.Medium
+                //     ),
+                //     color = MaterialTheme.colorScheme.primary
+                // )
+
+                // 💡 RESPUESTA TEÓRICA RÁPIDA:
+                // - Google Fonts descargables (ui-text-google-fonts): Descarga las fuentes bajo demanda vía Google Play Services.
+                // - Reduce el peso del APK y permite compartir fuentes entre apps en la caché del dispositivo.
+                // - 'font_certs.xml': Arreglo de hashes criptográficos SHA-256 obligatorios para verificar que el proveedor
+                //   de fuentes no ha sido suplantado mediante un ataque de tipo Man-in-the-Middle o app maliciosa.
+                =================================================================================================== */
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -667,3 +763,47 @@ private fun ObservacionesSectionPreview() {
         }
     }
 }
+
+/* =================== [DEFENSA CASO 14: Composable Stateless ConfirmarBajaDialog] ===================
+// 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+// Descomenta este composable stateless desacoplado:
+// @Composable
+// fun ConfirmarBajaDialog(
+//     nombreActivo: String,
+//     onConfirmar: () -> Unit,
+//     onDismiss: () -> Unit
+// ) {
+//     AlertDialog(
+//         onDismissRequest = onDismiss,
+//         title = { Text(text = "Dar de baja activo") },
+//         text = {
+//             Text(text = "¿Estás seguro de que deseas dar de baja el activo '$nombreActivo'? Esta acción se registrará localmente y se sincronizará con el servidor.")
+//         },
+//         confirmButton = {
+//             Button(
+//                 onClick = onConfirmar,
+//                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+//             ) {
+//                 Text(text = "Dar de baja")
+//             }
+//         },
+//         dismissButton = {
+//             TextButton(onClick = onDismiss) {
+//                 Text(text = "Cancelar")
+//             }
+//         }
+//     )
+// }
+==================================================================================================== */
+
+/* =================== [DEFENSA CASO 15: rememberSaveable con clave de activo] ===================
+// 🛠️ PASO TEÓRICO / PRÁCTICO PARA ACTIVAR EN EL EXAMEN:
+// Si se gestionara estado efímero directamente en Compose en lugar del ViewModel, se usaría:
+// var borradorLocal by rememberSaveable(asset.id) { mutableStateOf(asset.observations ?: "") }
+//
+// 💡 RESPUESTA TEÓRICA RÁPIDA:
+// - 'remember' solo sobrevive a recomposiciones, pero se destruye en cambios de configuración (rotación de pantalla).
+// - 'rememberSaveable' almacena el valor en el 'SavedStateRegistry' de Android (Bundle), sobreviviendo a rotaciones.
+// - La clave 'asset.id' como input ('inputs = arrayOf(asset.id)') es crucial: si el activo cambia (navegación a otro detalle),
+//   la instancia de estado se reinicializa con el nuevo activo en lugar de retener el borrador del activo anterior.
+================================================================================================ */

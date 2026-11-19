@@ -58,6 +58,13 @@ fun ScanTechNavGraph(
 
         // Pantalla de Solicitud de Permiso de Cámara
         composable<NavRoute.CameraPermissionRoute> {
+            /* =================== [DEFENSA CASO 10: Limpieza de Back Stack con popUpTo] ===================
+            // 💡 EXPLICACIÓN TEÓRICA RÁPIDA:
+            // - 'popUpTo<T> { inclusive = true }' elimina el destino especificado del Back Stack antes de navegar.
+            // - Si omitiéramos 'inclusive = true', al presionar el botón físico "Atrás" desde el escáner,
+            //   el usuario volvería a ver la pantalla de permisos (comportamiento molesto y redundante).
+            // - Con esto garantizamos un flujo natural: Dashboard -> Permiso -> Escáner (BackStack: Dashboard -> Escáner).
+            ============================================================================================= */
             CameraPermissionScreen(
                 onRequestPermission = {
                     // Tras conceder el permiso, transita al escáner óptico reemplazando la pantalla de permisos
@@ -89,8 +96,25 @@ fun ScanTechNavGraph(
         // Pantalla de Ficha Técnica del Activo (Módulo de Detalle)
         composable<NavRoute.AssetDetailRoute> { backStackEntry ->
             val routeArgs = backStackEntry.toRoute<NavRoute.AssetDetailRoute>()
+
+            /* =================== [DEFENSA CASO 9: Extracción Simplificada con inline reified] ===================
+            // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+            // Descomenta la función inline al final del archivo y reemplaza la línea de arriba por:
+            // val routeArgs = backStackEntry.route<NavRoute.AssetDetailRoute>()
+
+            // 💡 RESPUESTA TEÓRICA RÁPIDA:
+            // - En la JVM los tipos genéricos se eliminan en compilación (Type Erasure), por lo que normalmente
+            //   no se puede hacer 'T::class'. Con 'inline' y 'reified T', el compilador copia el código en el punto
+            //   de llamada y preserva la información de tipo real en tiempo de ejecución.
+            ==================================================================================================== */
+
             AssetDetailScreen(
                 assetId = routeArgs.assetId,
+                /* =================== [DEFENSA CASO 6: Propagación de modoAuditoria] ===================
+                // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+                // Descomenta esta línea para propagar el modo auditoría a la pantalla de detalle:
+                // modoAuditoria = routeArgs.modoAuditoria,
+                ====================================================================================== */
                 onNavigateBack = {
                     navController.popBackStack()
                 },
@@ -109,10 +133,48 @@ fun ScanTechNavGraph(
                     navController.popBackStack()
                 },
                 onSaveSuccess = {
+                    // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 7) ---
                     // El catálogo observa Room: se actualiza solo, no hace falta recargarlo.
                     navController.popBackStack()
+
+                    /* =================== [DEFENSA CASO 7: popUpTo al Guardar en Formulario] ===================
+                    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+                    // 1. Comenta 'navController.popBackStack()' de arriba.
+                    // 2. Descomenta esta navegación con limpieza de formulario del back stack:
+                    // navController.navigate(NavRoute.DashboardRoute) {
+                    //     popUpTo<NavRoute.DashboardRoute> { inclusive = false }
+                    // }
+
+                    // 💡 RESPUESTA TEÓRICA RÁPIDA:
+                    // - Al guardar un registro, el formulario ya cumplió su propósito. Si solo usamos 'popBackStack()',
+                    //   el usuario podría regresar por accidente a un estado obsoleto si navegó por enlaces anidados.
+                    // - 'popUpTo<DashboardRoute> { inclusive = false }' vacía todo el historial intermedio hasta el Dashboard,
+                    //   asegurando que el botón Atrás cierre la aplicación y no reabra el formulario.
+                    =========================================================================================== */
                 }
             )
         }
+
+        /* =================== [DEFENSA CASO 8: Registro del Destino HistorialBajas en Grafo] ===================
+        // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+        // Descomenta este bloque composable para registrar la ruta en el grafo:
+        // composable<NavRoute.HistorialBajasRoute> {
+        //     androidx.compose.foundation.layout.Box(
+        //         modifier = Modifier.fillMaxSize(),
+        //         contentAlignment = androidx.compose.ui.Alignment.Center
+        //     ) {
+        //         androidx.compose.material3.Text(
+        //             text = "Historial de Activos Dados de Baja (En construcción)",
+        //             style = androidx.compose.material3.MaterialTheme.typography.titleMedium
+        //         )
+        //     }
+        // }
+        ====================================================================================================== */
     }
 }
+
+/* =================== [DEFENSA CASO 9: Función Inline de Extensión route<T>()] ===================
+// 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+// Descomenta esta función de extensión genérica al final del archivo:
+// inline fun <reified T : NavRoute> androidx.navigation.NavBackStackEntry.route(): T = toRoute<T>()
+================================================================================================ */

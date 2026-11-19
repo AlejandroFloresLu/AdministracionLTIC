@@ -51,6 +51,14 @@ class ScanViewModel(
 
     private val _lastDetectedQr = MutableStateFlow<String?>(null)
 
+    /* =================== [DEFENSA CASO 20: Encapsulación de StateFlow y UDF en ViewModel] ===================
+    // 💡 EXPLICACIÓN TEÓRICA RÁPIDA:
+    // - Regla de Oro de UDF (RDA-3 Tema 9 Slide 17): El estado mutable '_uiState' (MutableStateFlow) DEBE ser estrictamente 'private'.
+    // - Solo el ViewModel tiene permiso de mutar el estado mediante '_uiState.update { ... }' o '_uiState.value = ...'.
+    // - La UI solo tiene acceso a 'uiState: StateFlow' de solo lectura (vía 'asStateFlow()' o 'stateIn()').
+    // - Esto erradica el antipatrón de vistas que mutan el estado arbitrariamente por su cuenta, garantizando flujo unidireccional estricto.
+    ========================================================================================================== */
+
     // Estado reactivo compuesto expuesto para la vista
     val uiState: StateFlow<ScanUiState> = combine(
         isFlashlightOn,

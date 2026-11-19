@@ -33,6 +33,20 @@ class GuardarActivoUseCase(
      * @return [Result.Success] con el activo persistido o [Result.Error] con la causa del fallo.
      */
     suspend operator fun invoke(asset: Asset, isEditMode: Boolean = false): Result<Asset> {
+        /* =================== [DEFENSA CASO 24: Validación de Regla de Negocio units >= 1 en Dominio] ===================
+        // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+        // Descomenta esta regla de negocio estricta al inicio de este caso de uso:
+        // if (asset.units < 1) {
+        //     return Result.Error("Regla de Dominio LTIC: Todo activo en inventario debe poseer al menos 1 unidad física.")
+        // }
+
+        // 💡 RESPUESTA TEÓRICA RÁPIDA:
+        // - Validación de UI vs Validación de Dominio: La UI valida formato de entrada (ej. que no esté vacío),
+        //   mientras que el Caso de Uso hace cumplir las invariantes y reglas de negocio del sistema.
+        // - Defensa en Profundidad: Aunque un atacante o cliente alternativo eluda la UI, el caso de uso
+        //   garantiza que el estado de la base de datos nunca se corrompa con datos operativamente ilógicos.
+        =============================================================================================================== */
+
         // 1. Verificar unicidad de QR en la base de datos
         val excludeId = if (isEditMode) asset.id else null
         val existeCheck = repository.existsQrCode(qrCode = asset.qrCode, excludeId = excludeId)

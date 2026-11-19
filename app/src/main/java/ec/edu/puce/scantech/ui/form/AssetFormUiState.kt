@@ -35,3 +35,20 @@ data class AssetFormUiState(
     val errorGeneral: String? = null
 )
 
+/* =================== [DEFENSA CASO 18: Modelado con Sealed Interface para Estados Disjuntos] ===================
+// 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+// Si el docente solicita refactorizar el estado plano hacia una máquina de estados finita sellada:
+// sealed interface FormOperationState {
+//     data object Idle : FormOperationState
+//     data object Guardando : FormOperationState
+//     data object GuardadoExitoso : FormOperationState
+//     data class Error(val mensaje: String) : FormOperationState
+// }
+
+// 💡 RESPUESTA TEÓRICA RÁPIDA:
+// - Data class plana vs Sealed Interface: Una data class plana con múltiples booleanos ('isSaving', 'isSavedSuccess')
+//   puede generar estados inconsistentes o ilegales (ej. 'isSaving = true' e 'isSavedSuccess = true' simultáneamente).
+// - Una 'sealed interface' modela estados mutuamente excluyentes (disjuntos). En Compose, el compilador obliga
+//   a que la expresión 'when (operationState)' sea 100% exhaustiva sin necesidad de rama 'else'.
+================================================================================================================ */
+

@@ -162,6 +162,19 @@ class AssetFormViewModel(
     fun onQrChange(value: String) {
         val uppercaseVal = value.uppercase()
         savedStateHandle[KEY_QR] = uppercaseVal
+
+        /* =================== [DEFENSA CASO 17: Auditoría y Resiliencia de SavedStateHandle] ===================
+        // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+        // Descomenta este log de auditoría para verificar la escritura inmediata en el bundle de supervivencia:
+        // android.util.Log.v("ScanTech_SSH", "SavedStateHandle[$KEY_QR] actualizado inmediatamente con: '$uppercaseVal'")
+
+        // 💡 RESPUESTA TEÓRICA RÁPIDA:
+        // - SavedStateHandle retiene pares clave-valor que sobreviven no solo a Configuration Changes (rotación),
+        //   sino a la muerte del proceso en segundo plano por el sistema operativo (Process Death / Low Memory Killer).
+        // - Al persistir cada tecla pulsada ('onValueChange'), si el usuario minimiza la app y Android mata el proceso
+        //   (simulable con 'adb shell am kill ec.edu.puce.scantech'), al regresar los campos se restauran intactos.
+        ====================================================================================================== */
+
         _uiState.update { it.copy(qrCode = uppercaseVal) }
         revalidar()
     }
@@ -264,7 +277,21 @@ class AssetFormViewModel(
             qrCode = current.qrCode.trim(),
             name = current.name.trim(),
             category = current.category.trim(),
+            // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 4) ---
             technicalSpecs = current.technicalSpecs.trim(),
+            /* =================== [DEFENSA CASO 4: Sanitizar Texto con Función de Alcance .run] ===================
+            // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+            // 1. Comenta la asignación de technicalSpecs de arriba.
+            // 2. Descomenta esta transformación funcional idiomática con .run {}:
+            // technicalSpecs = current.technicalSpecs.run {
+            //     trim().uppercase()
+            // },
+
+            // 💡 RESPUESTA TEÓRICA RÁPIDA:
+            // - '.run {}' ejecuta un bloque de código en el contexto del objeto receptor ('this') y retorna el resultado
+            //   de la última expresión del bloque (a diferencia de '.apply {}' que retorna el propio objeto receptor).
+            // - Es ideal para cómputos o transformaciones encadenadas sobre un mismo objeto antes de asignarlo.
+            ====================================================================================================== */
             color = current.color.trim().ifBlank { null },
             dimensions = current.dimensions.trim().ifBlank { null },
             block = current.block.trim().ifBlank { "A" },
@@ -279,6 +306,13 @@ class AssetFormViewModel(
 
             val result = guardarActivoUseCase(asset = assetToSave, isEditMode = isEditMode)
             withContext(Dispatchers.Main) {
+                /* =================== [DEFENSA CASO 25: Manejo Exhaustivo de Result.Success vs Result.Error] ===================
+                // 💡 EXPLICACIÓN TEÓRICA RÁPIDA:
+                // - En lugar de lanzar excepciones (try-catch descontrolados), la capa de Dominio retorna un 'sealed interface Result<T>'.
+                // - Esto obliga a la capa de UI a contemplar explícitamente tanto el camino feliz (Success) como el de fallo (Error).
+                // - La expresión 'when (result)' no requiere 'else', garantizando que si se agrega un nuevo subtipo
+                //   (ej. 'Result.Loading' o 'Result.NetworkError'), el compilador señalará de inmediato todos los puntos a actualizar.
+                ================================================================================================================ */
                 when (result) {
                     is Result.Success -> {
                         _uiState.update { it.copy(isSaving = false, isSavedSuccess = true) }

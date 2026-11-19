@@ -402,6 +402,7 @@ fun AssetFormContent(
                     Text("Cancelar")
                 }
 
+                // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 12) ---
                 Button(
                     onClick = onSave,
                     enabled = !uiState.isSaving,
@@ -414,6 +415,16 @@ fun AssetFormContent(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
+                    /* =================== [DEFENSA CASO 12: Botón Guardar con enabled Reactivo a Validación] ===================
+                    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+                    // Cambia la propiedad 'enabled' de arriba por:
+                    // enabled = !uiState.isSaving && uiState.isValid && uiState.errores.isEmpty()
+
+                    // 💡 RESPUESTA TEÓRICA RÁPIDA:
+                    // - Principio de Prevención de Errores (Nielsen & Material 3): La UI debe guiar activamente al usuario
+                    //   impidiendo acciones inválidas antes de que ocurran, en lugar de esperar al envío para mostrar errores.
+                    // - Compose recalcula automáticamente el valor de 'enabled' en cada recomposición sin listeners manuales.
+                    ========================================================================================================== */
                     if (uiState.isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
