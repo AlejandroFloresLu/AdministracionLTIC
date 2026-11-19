@@ -22,11 +22,20 @@ sealed interface AssetDetailUiState {
 
     /**
      * Estado exitoso con el activo inmutable listo para inspección y edición.
+     *
+     * [observacionesDraft] es el texto que el usuario está editando (sobrevive a rotación y a
+     * muerte del proceso vía SavedStateHandle); [isSavingObservaciones] indica un guardado en curso.
      */
     data class Success(
         val asset: Asset,
-        val isDeleting: Boolean = false
-    ) : AssetDetailUiState
+        val isDeleting: Boolean = false,
+        val observacionesDraft: String = asset.observations.orEmpty(),
+        val isSavingObservaciones: Boolean = false
+    ) : AssetDetailUiState {
+        /** El borrador difiere de lo guardado en Room (se compara sin espacios en los extremos). */
+        val hayCambiosObservaciones: Boolean
+            get() = observacionesDraft.trim() != asset.observations.orEmpty().trim()
+    }
 
     /**
      * Estado de error si el activo no existe o si falló la lectura local.
@@ -34,5 +43,11 @@ sealed interface AssetDetailUiState {
     data class Error(
         val mensaje: String
     ) : AssetDetailUiState
+}
+
+/** Eventos de un solo uso del guardado de observaciones (se muestran como Snackbar). */
+sealed interface ObservacionesEvento {
+    data object Guardadas : ObservacionesEvento
+    data class Error(val mensaje: String) : ObservacionesEvento
 }
 
