@@ -53,6 +53,16 @@ class AssetFormViewModel(
 ) : ViewModel() {
 
     companion object {
+        /** [Caso 5] Valor seguro que asigna el operador Elvis si el texto no es un entero. */
+        const val UNIDADES_POR_DEFECTO = 0
+
+        /**
+         * [Caso 5] Parseo blindado: `toIntOrNull()` devuelve `null` en lugar de lanzar
+         * NumberFormatException ("abc", "", "5 días"), y Elvis (?:) lo reemplaza por 0.
+         */
+        fun procesarUnidades(texto: String): Int =
+            texto.trim().toIntOrNull() ?: UNIDADES_POR_DEFECTO
+
         private const val KEY_QR = "form_qr_code"
         private const val KEY_NAME = "form_name"
         private const val KEY_CATEGORY = "form_category"
@@ -217,7 +227,8 @@ class AssetFormViewModel(
 
     fun onUnitsChange(value: String) {
         savedStateHandle[KEY_UNITS] = value
-        _uiState.update { it.copy(units = value) }
+        // Caso 5: el resultado mostrado es temporal; se limpia en cuanto el usuario vuelve a escribir
+        _uiState.update { it.copy(units = value, unidadesProcesadas = null) }
         revalidar()
     }
 
@@ -257,6 +268,10 @@ class AssetFormViewModel(
      * Criterio crítico del enunciado: Si existen errores de validación, el botón Guardar NO persiste nada.
      */
     fun saveAsset() {
+        // Caso 5: se procesa la entrada numérica antes de validar; con letras o vacío no hay crash
+        val unidadesProcesadas = procesarUnidades(_uiState.value.units)
+        _uiState.update { it.copy(unidadesProcesadas = unidadesProcesadas) }
+
         if (!revalidar()) {
             _uiState.update { it.copy(errorGeneral = "Por favor corrige los campos señalados antes de guardar.") }
             return
@@ -278,7 +293,7 @@ class AssetFormViewModel(
             block = current.block.trim().ifBlank { "A" },
             shelf = current.shelf.trim().ifBlank { "1" },
             locker = current.locker.trim().ifBlank { "1" },
-            units = parsedUnits,
+            units = unidadesProcesadas,
             observations = current.observations.trim().ifBlank { null }
         )
 

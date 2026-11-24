@@ -370,6 +370,15 @@ fun AssetFormContent(
                 )
             }
 
+            // Caso 5: resultado reactivo del parseo seguro (toIntOrNull + Elvis) al presionar Guardar
+            uiState.unidadesProcesadas?.let { valor ->
+                Text(
+                    text = "Unidades procesadas de forma segura: $valor",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
+
             // Campo: Dimensiones
             OutlinedTextField(
                 value = uiState.dimensions,
