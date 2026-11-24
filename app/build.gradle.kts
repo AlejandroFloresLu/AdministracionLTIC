@@ -48,6 +48,8 @@ ksp {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    // Caso de práctica 10: dependencia nueva agregada solo por el catálogo de versiones
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
