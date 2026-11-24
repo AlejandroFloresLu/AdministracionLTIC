@@ -98,6 +98,7 @@ import ec.edu.puce.scantech.ui.theme.ScanTechTheme
 @Composable
 fun AssetDetailScreen(
     assetId: String,
+    origen: String,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -157,6 +158,7 @@ fun AssetDetailScreen(
                 puedeGuardarObservaciones = state.hayCambiosObservaciones && !state.isSavingObservaciones,
                 guardandoObservaciones = state.isSavingObservaciones,
                 snackbarHostState = snackbarHostState,
+                origen = origen,
                 onNavigateBack = onNavigateBack,
                 onNavigateToEdit = { onNavigateToEdit(state.asset.id) },
                 onObservacionesChange = viewModel::onObservacionesChange,
@@ -196,7 +198,8 @@ fun AssetDetailContent(
     onDeleteConfirmed: () -> Unit,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
-    estadoOperativo: EstadoOperativo? = null
+    estadoOperativo: EstadoOperativo? = null,
+    origen: String? = null
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -261,7 +264,8 @@ fun AssetDetailContent(
             // Tarjeta superior: Identificación, QR, Estado Operativo y Estado de Sincronización
             AssetHeaderCard(
                 asset = asset,
-                estadoOperativo = estadoOperativo
+                estadoOperativo = estadoOperativo,
+                origen = origen
             )
 
             // Tarjeta de Características Técnicas
@@ -364,6 +368,7 @@ fun AssetDetailContent(
 private fun AssetHeaderCard(
     asset: Asset,
     estadoOperativo: EstadoOperativo?,
+    origen: String?,
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
@@ -404,6 +409,15 @@ private fun AssetHeaderCard(
                     EstadoOperativoBadge(estado = estadoOperativo)
                 }
                 SyncBadge(status = asset.syncStatus)
+            }
+
+            // Caso de práctica 3: dato leído desde la ruta tipada (toRoute) y mostrado en la tarjeta
+            if (origen != null) {
+                Text(
+                    text = stringResource(R.string.detail_opened_from, origen),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -635,6 +649,7 @@ private fun AssetDetailContentPreview() {
             puedeGuardarObservaciones = false,
             guardandoObservaciones = false,
             estadoOperativo = EstadoOperativo.CRITICO,
+            origen = "Catálogo",
             onNavigateBack = {},
             onNavigateToEdit = {},
             onObservacionesChange = {},

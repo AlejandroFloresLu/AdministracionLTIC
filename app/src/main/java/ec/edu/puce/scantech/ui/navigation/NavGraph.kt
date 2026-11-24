@@ -45,7 +45,9 @@ fun ScanTechNavGraph(
             InventoryDashboardScreen(
                 viewModel = viewModel,
                 onNavigateToDetail = { assetId ->
-                    navController.navigate(NavRoute.AssetDetailRoute(assetId = assetId))
+                    navController.navigate(
+                        NavRoute.AssetDetailRoute(assetId = assetId, origen = ORIGEN_CATALOGO)
+                    )
                 },
                 onNavigateToScanner = {
                     navController.navigate(NavRoute.CameraPermissionRoute)
@@ -76,7 +78,9 @@ fun ScanTechNavGraph(
             ScannerScreen(
                 onBarcodeDetected = { detectedId ->
                     // Al decodificar el código QR, transita directamente a la Ficha Técnica del hardware
-                    navController.navigate(NavRoute.AssetDetailRoute(assetId = detectedId)) {
+                    navController.navigate(
+                        NavRoute.AssetDetailRoute(assetId = detectedId, origen = ORIGEN_ESCANER)
+                    ) {
                         popUpTo<NavRoute.ScannerRoute> { inclusive = true }
                     }
                 },
@@ -91,6 +95,7 @@ fun ScanTechNavGraph(
             val routeArgs = backStackEntry.toRoute<NavRoute.AssetDetailRoute>()
             AssetDetailScreen(
                 assetId = routeArgs.assetId,
+                origen = routeArgs.origen,
                 onNavigateBack = {
                     navController.popBackStack()
                 },
@@ -116,3 +121,7 @@ fun ScanTechNavGraph(
         }
     }
 }
+
+/** [Caso de práctica 3] Valores del parámetro `origen` de [NavRoute.AssetDetailRoute]. */
+private const val ORIGEN_CATALOGO = "Catálogo"
+private const val ORIGEN_ESCANER = "Escáner"

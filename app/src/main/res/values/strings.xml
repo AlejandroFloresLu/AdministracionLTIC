@@ -66,4 +66,5 @@
     <string name="sync_status_pending_create">Pendiente Crear</string>
     <string name="sync_status_pending_update">Pendiente Actualizar</string>
     <string name="sync_status_pending_delete">Pendiente Eliminar</string>
+    <string name="detail_opened_from">Abierto desde: %1$s</string>
 </resources>

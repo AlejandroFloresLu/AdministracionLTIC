@@ -31,10 +31,13 @@ sealed interface NavRoute {
     /**
      * Pantalla de Ficha Técnica del Activo con especificaciones completas.
      * @param assetId Identificador único o QR del activo.
+     * @param origen [Caso de práctica 3] Pantalla desde la que se abrió la ficha (auditoría).
+     *   Es obligatorio y no anulable: si alguna llamada no lo envía, el proyecto no compila.
      */
     @Serializable
     data class AssetDetailRoute(
-        val assetId: String
+        val assetId: String,
+        val origen: String
     ) : NavRoute
 
     /**
