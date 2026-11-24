@@ -51,10 +51,12 @@ sealed interface NavRoute {
     /**
      * Módulo de Formulario Ultra-Resiliente (Enunciado §3 y Tarea #55).
      * @param assetId `null` para modo Alta / Registro; ID existente para modo Edición.
+     * @param initialQr Código QR prellenado opcional al dar de alta desde el escáner óptico (Tarea #5).
      */
     @Serializable
     data class AssetFormRoute(
-        val assetId: String? = null
+        val assetId: String? = null,
+        val initialQr: String? = null
     ) : NavRoute
 
     /**

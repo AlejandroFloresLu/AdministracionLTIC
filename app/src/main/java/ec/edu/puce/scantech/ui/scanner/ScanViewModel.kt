@@ -7,41 +7,54 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import ec.edu.puce.scantech.appContainer
+import ec.edu.puce.scantech.domain.Result
+import ec.edu.puce.scantech.domain.usecase.ObtenerActivoPorQrUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * [RDA-1 Tema 4: Ciclo de Vida y Resiliencia ante Process Death con SavedStateHandle]
  * [RDA-3 Temas 9 y 10: MVVM + UDF y Concurrencia Estructurada]
+ * [RDA-3 Temas 11 y 12: Verificación de Existencia Local en SQLite (Room)]
  *
- * ViewModel especializado para la pantalla de escaneo óptico inteligente.
+ * ViewModel especializado para la pantalla de escaneo óptico inteligente (Tareas #4, #5 y #27).
  *
  * Conceptos Teóricos Aplicados:
- * 1. Resiliencia de Proceso (SavedStateHandle): Las preferencias efímeras del hardware de la cámara
- *    (linterna y pausa de escaneo) se guardan en el mapa serializado de `SavedStateHandle`. Si el sistema
- *    operativo mata el proceso en segundo plano por presión de memoria RAM (*Process Death*), el estado
- *    se restaura de forma automática al regresar.
+ * 1. Resiliencia de Proceso (SavedStateHandle): El estado del hardware (linterna y pausa) se persiste
+ *    en `SavedStateHandle`. Si el sistema operativo destruye la Activity por rotación o liquida el proceso
+ *    por falta de RAM (*Process Death*), el visor recupera su estado sin perder continuidad.
  * 2. Flujo Unidireccional de Datos (UDF):
- *    - Los eventos suben desde la UI (ej. `toggleFlashlight()`).
+ *    - Los eventos suben desde la UI (ej. `onCodeScanned()`, `toggleFlashlight()`).
  *    - El estado fluye hacia abajo mediante [StateFlow] inmutable (`uiState`), garantizando que la vista
  *      no altere la lógica interna por cuenta propia.
- * 3. Desacoplamiento (Anti-God Activity): La cámara tiene su propio ciclo y estado; no comparte responsabilidades
- *    con el inventario general (`InventoryViewModel`).
+ * 3. Verificación Local Inmediata (Tarea #5): Al decodificar el código QR con ML Kit, consulta la base de datos
+ *    local Room. Si existe, despacha la navegación a la Ficha Técnica; si no existe, emite el estado
+ *    para mostrar el diálogo de alta asistida con código prellenado.
  */
 class ScanViewModel(
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
+    private val obtenerActivoPorQrUseCase: ObtenerActivoPorQrUseCase
 ) : ViewModel() {
 
     companion object {
         private const val KEY_FLASHLIGHT = "key_scan_flashlight_state"
         private const val KEY_SCAN_PAUSED = "key_scan_paused_state"
 
-        /** No necesita repositorio: solo recibe el [SavedStateHandle] del sistema. */
+        /** Factory que inyecta [ObtenerActivoPorQrUseCase] con el repositorio de [appContainer]. */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer { ScanViewModel(createSavedStateHandle()) }
+            initializer {
+                val repository = appContainer().assetRepository
+                ScanViewModel(
+                    savedStateHandle = createSavedStateHandle(),
+                    obtenerActivoPorQrUseCase = ObtenerActivoPorQrUseCase(repository)
+                )
+            }
         }
     }
 
@@ -49,26 +62,29 @@ class ScanViewModel(
     val isFlashlightOn: StateFlow<Boolean> = savedStateHandle.getStateFlow(KEY_FLASHLIGHT, false)
     val isScanningPaused: StateFlow<Boolean> = savedStateHandle.getStateFlow(KEY_SCAN_PAUSED, false)
 
-    private val _lastDetectedQr = MutableStateFlow<String?>(null)
+    // Estado efímero de análisis y navegación
+    private data class InternalScanState(
+        val isAnalyzing: Boolean = false,
+        val lastDetectedQr: String? = null,
+        val navigateToAssetId: String? = null,
+        val unregisteredQrCode: String? = null
+    )
 
-    /* =================== [DEFENSA CASO 20: Encapsulación de StateFlow y UDF en ViewModel] ===================
-    // 💡 EXPLICACIÓN TEÓRICA RÁPIDA:
-    // - Regla de Oro de UDF (RDA-3 Tema 9 Slide 17): El estado mutable '_uiState' (MutableStateFlow) DEBE ser estrictamente 'private'.
-    // - Solo el ViewModel tiene permiso de mutar el estado mediante '_uiState.update { ... }' o '_uiState.value = ...'.
-    // - La UI solo tiene acceso a 'uiState: StateFlow' de solo lectura (vía 'asStateFlow()' o 'stateIn()').
-    // - Esto erradica el antipatrón de vistas que mutan el estado arbitrariamente por su cuenta, garantizando flujo unidireccional estricto.
-    ========================================================================================================== */
+    private val _internalScanState = MutableStateFlow(InternalScanState())
 
-    // Estado reactivo compuesto expuesto para la vista
+    // Estado reactivo compuesto expuesto para la vista (UDF con Flow combine tipado)
     val uiState: StateFlow<ScanUiState> = combine(
         isFlashlightOn,
         isScanningPaused,
-        _lastDetectedQr
-    ) { flashlight, paused, lastQr ->
+        _internalScanState
+    ) { flashlight, paused, internal ->
         ScanUiState(
             isFlashlightOn = flashlight,
             isScanningPaused = paused,
-            lastDetectedQr = lastQr
+            isAnalyzing = internal.isAnalyzing,
+            lastDetectedQr = internal.lastDetectedQr,
+            navigateToAssetId = internal.navigateToAssetId,
+            unregisteredQrCode = internal.unregisteredQrCode
         )
     }.stateIn(
         scope = viewModelScope,
@@ -95,19 +111,65 @@ class ScanViewModel(
     }
 
     /**
-     * Registra un código QR detectado y pausa temporalmente para evitar lecturas duplicadas (antirrebote).
+     * Procesa un código QR detectado por ML Kit o simulado.
+     * Consulta inmediatamente a Room mediante [ObtenerActivoPorQrUseCase] (Tarea #5).
      */
     fun onCodeScanned(qrCode: String) {
-        _lastDetectedQr.value = qrCode
+        val codigoLimpio = qrCode.trim()
+        if (codigoLimpio.isBlank() || isScanningPaused.value) return
+
+        // Pausar escáner para evitar detecciones duplicadas
         setScanningPaused(true)
+        _internalScanState.update {
+            it.copy(isAnalyzing = true, lastDetectedQr = codigoLimpio)
+        }
+
+        viewModelScope.launch {
+            when (val result = obtenerActivoPorQrUseCase(codigoLimpio)) {
+                is Result.Success -> {
+                    // El activo existe localmente: preparamos navegación al detalle
+                    _internalScanState.update {
+                        it.copy(
+                            isAnalyzing = false,
+                            navigateToAssetId = result.data.id
+                        )
+                    }
+                }
+                is Result.Error -> {
+                    // El activo no existe en la base local: mostramos diálogo para registrar
+                    _internalScanState.update {
+                        it.copy(
+                            isAnalyzing = false,
+                            unregisteredQrCode = codigoLimpio
+                        )
+                    }
+                }
+            }
+        }
     }
 
     /**
-     * Reinicia el escáner para una nueva lectura.
+     * Notifica que la navegación hacia el detalle ya fue consumida por el Composable.
+     */
+    fun onNavigationHandled() {
+        _internalScanState.update { it.copy(navigateToAssetId = null) }
+    }
+
+    /**
+     * Descarta el diálogo de activo no registrado y reanuda el escaneo.
+     */
+    fun dismissUnregisteredDialog() {
+        _internalScanState.update {
+            it.copy(unregisteredQrCode = null, lastDetectedQr = null)
+        }
+        setScanningPaused(false)
+    }
+
+    /**
+     * Reinicia el escáner para una nueva lectura manual.
      */
     fun resumeScanning() {
-        _lastDetectedQr.value = null
+        _internalScanState.value = InternalScanState()
         setScanningPaused(false)
     }
 }
-

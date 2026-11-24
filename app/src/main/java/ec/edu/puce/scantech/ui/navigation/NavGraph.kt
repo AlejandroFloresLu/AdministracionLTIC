@@ -78,12 +78,18 @@ fun ScanTechNavGraph(
             )
         }
 
-        // Pantalla de Escáner Óptico de Códigos QR (Edge AI)
+        // Pantalla de Escáner Óptico de Códigos QR (Edge AI - Tareas #4, #5 y #27)
         composable<NavRoute.ScannerRoute> {
             ScannerScreen(
-                onBarcodeDetected = { detectedId ->
-                    // Al decodificar el código QR, transita directamente a la Ficha Técnica del hardware
+                onNavigateToDetail = { detectedId ->
+                    // Al decodificar un código existente en Room, transita a la Ficha Técnica (#5)
                     navController.navigate(NavRoute.AssetDetailRoute(assetId = detectedId)) {
+                        popUpTo<NavRoute.ScannerRoute> { inclusive = true }
+                    }
+                },
+                onNavigateToCreateWithQr = { initialQr ->
+                    // Si el código no existe en Room, transita al formulario con el QR prellenado (#5)
+                    navController.navigate(NavRoute.AssetFormRoute(assetId = null, initialQr = initialQr)) {
                         popUpTo<NavRoute.ScannerRoute> { inclusive = true }
                     }
                 },
@@ -129,6 +135,7 @@ fun ScanTechNavGraph(
             val routeArgs = backStackEntry.toRoute<NavRoute.AssetFormRoute>()
             AssetFormScreen(
                 assetId = routeArgs.assetId,
+                initialQr = routeArgs.initialQr,
                 onNavigateBack = {
                     navController.popBackStack()
                 },

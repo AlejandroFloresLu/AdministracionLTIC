@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,13 +78,14 @@ import ec.edu.puce.scantech.ui.components.LoadingIndicator
 @Composable
 fun AssetFormScreen(
     assetId: String?,
+    initialQr: String? = null,
     onNavigateBack: () -> Unit,
     onSaveSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel: AssetFormViewModel = viewModel(
-        factory = AssetFormViewModel.provideFactory(assetId),
-        key = "AssetFormViewModel_${assetId ?: "new"}"
+        factory = AssetFormViewModel.provideFactory(assetId, initialQr),
+        key = "AssetFormViewModel_${assetId ?: "new"}_${initialQr ?: ""}"
     )
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -177,6 +179,7 @@ fun AssetFormContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
