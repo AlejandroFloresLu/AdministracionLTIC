@@ -33,6 +33,11 @@ sealed interface ResultadoValidacion {
 object ValidadorActivo {
 
     const val MAX_OBSERVACIONES = 500
+
+    /** [Caso de práctica 2] Reglas nuevas del negocio LTIC. */
+    const val MIN_LONGITUD_NOMBRE = 4
+    const val MIN_UNIDADES = 1
+    const val MAX_UNIDADES = 500
     private val FORMATO_QR = Regex("^LTIC-\\d{6}$")
 
     fun validar(datos: DatosActivo, qrYaExiste: Boolean): ResultadoValidacion {
@@ -45,8 +50,10 @@ object ValidadorActivo {
             qrYaExiste -> errores[CampoActivo.QR_CODE] = "Ya existe un activo con este código"
         }
 
-        if (datos.nombre.isBlank()) {
-            errores[CampoActivo.NOMBRE] = "El nombre es obligatorio"
+        when {
+            datos.nombre.isBlank() -> errores[CampoActivo.NOMBRE] = "El nombre es obligatorio"
+            datos.nombre.trim().length < MIN_LONGITUD_NOMBRE ->
+                errores[CampoActivo.NOMBRE] = "El nombre debe tener al menos $MIN_LONGITUD_NOMBRE caracteres"
         }
 
         if (datos.categoria.isBlank()) {
@@ -57,6 +64,8 @@ object ValidadorActivo {
         when {
             unidades == null -> errores[CampoActivo.UNITS] = "Ingresa un número entero"
             unidades < 0 -> errores[CampoActivo.UNITS] = "Las unidades no pueden ser negativas"
+            unidades !in MIN_UNIDADES..MAX_UNIDADES ->
+                errores[CampoActivo.UNITS] = "Las unidades deben estar entre $MIN_UNIDADES y $MAX_UNIDADES"
         }
 
         if (datos.observaciones.length > MAX_OBSERVACIONES) {

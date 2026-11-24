@@ -60,6 +60,36 @@ class ValidadorActivoTest {
     }
 
     @Test
+    fun nombreCortoEsInvalido() {
+        val corto = ValidadorActivo.validar(
+            datosValidos().copy(nombre = " Ana "), qrYaExiste = false
+        ) as ResultadoValidacion.Invalido
+
+        assertTrue(CampoActivo.NOMBRE in corto.errores)
+        assertEquals(
+            ResultadoValidacion.Valido,
+            ValidadorActivo.validar(datosValidos().copy(nombre = "Anas"), qrYaExiste = false)
+        )
+    }
+
+    @Test
+    fun unidadesFueraDeRangoSonInvalidas() {
+        val cero = ValidadorActivo.validar(
+            datosValidos().copy(units = "0"), qrYaExiste = false
+        ) as ResultadoValidacion.Invalido
+        val exceso = ValidadorActivo.validar(
+            datosValidos().copy(units = "501"), qrYaExiste = false
+        ) as ResultadoValidacion.Invalido
+
+        assertTrue(CampoActivo.UNITS in cero.errores)
+        assertTrue(CampoActivo.UNITS in exceso.errores)
+        assertEquals(
+            ResultadoValidacion.Valido,
+            ValidadorActivo.validar(datosValidos().copy(units = "500"), qrYaExiste = false)
+        )
+    }
+
+    @Test
     fun observacionesSobreellimiteSonInvalidas() {
         val largo = "x".repeat(ValidadorActivo.MAX_OBSERVACIONES + 1)
         val resultado = ValidadorActivo.validar(
