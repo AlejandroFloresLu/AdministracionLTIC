@@ -26,7 +26,7 @@ import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
         CategoryEntity::class,
         SyncOperationEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(SyncStatusConverter::class)
@@ -59,6 +59,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * [Caso de práctica 6] v2 -> v3: agrega la columna `responsable` sin perder datos.
+         * Los activos existentes quedan con 'Bodega LTIC' gracias al DEFAULT.
+         */
+        val MIGRACION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `assets` ADD COLUMN `responsable` TEXT NOT NULL DEFAULT 'Bodega LTIC'"
+                )
+            }
+        }
+
         @Volatile
         private var instancia: AppDatabase? = null
 
@@ -70,7 +82,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE_ARCHIVO
                 )
-                    .addMigrations(MIGRACION_1_2)
+                    .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
                     .addCallback(SembradoInicial)
                     .build()
                     .also { instancia = it }

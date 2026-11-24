@@ -30,6 +30,8 @@ data class Asset(
     val locker: String,
     val units: Int,
     val observations: String? = null,
+    /** [Caso de práctica 6] Persona o área responsable del activo. */
+    val responsable: String = "Bodega LTIC",
     val syncStatus: SyncStatus = SyncStatus.PENDING_CREATE,
     val updatedAt: Long = System.currentTimeMillis(),
     val deletedAt: Long? = null

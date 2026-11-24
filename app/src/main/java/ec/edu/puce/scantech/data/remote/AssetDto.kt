@@ -17,6 +17,8 @@ data class AssetDto(
     val locker: String? = null,
     val units: Int = 0,
     val observations: String? = null,
+    /** [Caso de práctica 6] Si el servidor aún no envía el campo, se usa el valor por defecto. */
+    val responsable: String = "Bodega LTIC",
     val updatedAt: Long = 0L,
     val deletedAt: Long? = null
 )

@@ -302,6 +302,11 @@ fun AssetDetailContent(
                     label = stringResource(R.string.detail_label_locker),
                     value = asset.locker.orNotRegistered()
                 )
+                // Caso de práctica 6: columna nueva de Room (versión 3)
+                DetailFieldRow(
+                    label = stringResource(R.string.detail_label_responsable),
+                    value = asset.responsable
+                )
             }
 
             // Tarjeta de Inventario y Disponibilidad

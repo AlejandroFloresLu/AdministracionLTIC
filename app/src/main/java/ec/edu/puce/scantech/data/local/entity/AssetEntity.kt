@@ -1,5 +1,6 @@
 package ec.edu.puce.scantech.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -37,7 +38,17 @@ data class AssetEntity(
     val locker: String,
     val units: Int,
     val observations: String? = null,
+    /**
+     * [Caso de práctica 6] Custodio del activo. Columna nueva de la versión 3 de la base:
+     * `@ColumnInfo` desacopla el nombre físico y `defaultValue` debe coincidir con el DEFAULT
+     * de la migración, o Room rechaza el esquema al abrir la base.
+     */
+    @ColumnInfo(name = "responsable", defaultValue = RESPONSABLE_POR_DEFECTO)
+    val responsable: String = RESPONSABLE_POR_DEFECTO,
     val syncStatus: SyncStatus = SyncStatus.PENDING_CREATE,
     val updatedAt: Long = System.currentTimeMillis(),
     val deletedAt: Long? = null
 )
+
+/** Valor inicial del custodio para activos existentes y nuevos sin asignar. */
+const val RESPONSABLE_POR_DEFECTO = "Bodega LTIC"
