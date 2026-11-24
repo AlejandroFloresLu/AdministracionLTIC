@@ -9,7 +9,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.model.Asset
+import ec.edu.puce.scantech.domain.model.ResumenInventario
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
+import ec.edu.puce.scantech.domain.usecase.ObtenerResumenInventarioUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +42,8 @@ import kotlinx.coroutines.flow.stateIn
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class InventoryViewModel(
     private val savedStateHandle: SavedStateHandle,
-    private val obtenerActivosUseCase: ObtenerActivosUseCase
+    private val obtenerActivosUseCase: ObtenerActivosUseCase,
+    obtenerResumenInventarioUseCase: ObtenerResumenInventarioUseCase
 ) : ViewModel() {
 
     val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")
@@ -49,6 +52,18 @@ class InventoryViewModel(
 
     /** Se incrementa en [reintentar] para volver a suscribirse a Room tras un error. */
     private val reintentos = MutableStateFlow(0)
+
+    /**
+     * [Caso de práctica 8] Totales del catálogo completo. El cálculo corre en Dispatchers.Default
+     * (dentro del caso de uso); aquí solo se convierte en StateFlow para la UI.
+     */
+    val resumen: StateFlow<ResumenInventario> = obtenerResumenInventarioUseCase()
+        .catch { emit(ResumenInventario()) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = ResumenInventario()
+        )
 
     private val textoConDebounce = searchQuery
         .debounce { texto -> if (texto.isBlank()) 0L else DEBOUNCE_BUSQUEDA_MS }
@@ -113,7 +128,8 @@ class InventoryViewModel(
                 val repository = appContainer().assetRepository
                 InventoryViewModel(
                     savedStateHandle = createSavedStateHandle(),
-                    obtenerActivosUseCase = ObtenerActivosUseCase(repository)
+                    obtenerActivosUseCase = ObtenerActivosUseCase(repository),
+                    obtenerResumenInventarioUseCase = ObtenerResumenInventarioUseCase(repository)
                 )
             }
         }

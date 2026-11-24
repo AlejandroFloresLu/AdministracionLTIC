@@ -6,6 +6,7 @@ import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.repository.AssetRepository
 import ec.edu.puce.scantech.domain.repository.SyncSummary
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
+import ec.edu.puce.scantech.domain.usecase.ObtenerResumenInventarioUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -39,7 +40,11 @@ class InventoryViewModelTest {
     fun preparar() {
         Dispatchers.setMain(dispatcher)
         repo = RepositorioFalso()
-        vm = InventoryViewModel(SavedStateHandle(), ObtenerActivosUseCase(repo))
+        vm = InventoryViewModel(
+            SavedStateHandle(),
+            ObtenerActivosUseCase(repo),
+            ObtenerResumenInventarioUseCase(repo, dispatcher)
+        )
     }
 
     @After

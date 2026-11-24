@@ -91,6 +91,7 @@ fun InventoryDashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val resumen by viewModel.resumen.collectAsStateWithLifecycle()
 
     val categories = listOf(
         stringResource(R.string.category_all),
@@ -160,6 +161,19 @@ fun InventoryDashboardScreen(
                 selectedCategory = selectedCategory,
                 onCategorySelect = viewModel::onCategorySelect,
                 modifier = Modifier.fillMaxWidth()
+            )
+
+            // Caso de práctica 8: totales calculados fuera del hilo principal
+            Text(
+                text = stringResource(
+                    R.string.inventory_summary,
+                    resumen.totalActivos,
+                    resumen.totalUnidades,
+                    resumen.pendientesSync
+                ),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
