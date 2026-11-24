@@ -1,5 +1,6 @@
 package ec.edu.puce.scantech.ui.detail
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -61,7 +62,23 @@ class AssetDetailViewModel(
     val eventos: Flow<ObservacionesEvento> = _eventos.receiveAsFlow()
 
     init {
+        // Caso de práctica 5: se imprime una sola vez por ficha abierta; al rotar NO se repite,
+        // porque el ViewModelStore conserva esta misma instancia.
+        Log.d(TAG_CICLO_VIDA, "Ficha del activo creada: $assetId")
         observarActivo()
+    }
+
+    /**
+     * [Caso de práctica 5: Ciclo de vida del ViewModel]
+     *
+     * Android llama a este método una sola vez, cuando el destino sale del back stack para
+     * siempre (flecha atrás, popBackStack o dar de baja). No se llama al rotar la pantalla:
+     * la Activity se recrea, pero el ViewModel sigue vivo. `viewModelScope` se cancela justo
+     * antes, así que la observación de Room ya quedó detenida.
+     */
+    override fun onCleared() {
+        super.onCleared()
+        Log.d(TAG_CICLO_VIDA, "Memoria de la ficha liberada: $assetId")
     }
 
     /**
@@ -160,6 +177,9 @@ class AssetDetailViewModel(
     companion object {
         /** Clave del borrador en [SavedStateHandle]; `null` = sin cambios respecto a Room. */
         private const val KEY_BORRADOR_OBSERVACIONES = "observaciones_borrador"
+
+        /** Etiqueta para filtrar en Logcat: `tag:ScanTech_Lifecycle`. */
+        const val TAG_CICLO_VIDA = "ScanTech_Lifecycle"
 
         fun provideFactory(assetId: String): ViewModelProvider.Factory = viewModelFactory {
             initializer {
