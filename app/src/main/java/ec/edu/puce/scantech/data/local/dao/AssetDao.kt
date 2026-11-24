@@ -47,6 +47,26 @@ abstract class AssetDao {
     )
     abstract fun observeAssets(query: String, category: String?): Flow<List<AssetEntity>>
 
+    /**
+     * [Caso de práctica 1] Igual que [observeAssets], pero solo con los activos que aún tienen
+     * cambios locales sin confirmar por el servidor (`syncStatus != 'SYNCED'`).
+     * Devuelve `Flow` (sin `suspend`): Room vuelve a emitir cada vez que la tabla cambia.
+     */
+    @Query(
+        """
+        SELECT * FROM assets
+        WHERE deletedAt IS NULL
+          AND syncStatus != 'SYNCED'
+          AND (:category IS NULL OR category = :category COLLATE NOCASE)
+          AND (:query = ''
+               OR name LIKE '%' || :query || '%' ESCAPE '\'
+               OR qrCode LIKE '%' || :query || '%' ESCAPE '\'
+               OR technicalSpecs LIKE '%' || :query || '%' ESCAPE '\')
+        ORDER BY name COLLATE NOCASE ASC, id ASC
+        """
+    )
+    abstract fun observePendingAssets(query: String, category: String?): Flow<List<AssetEntity>>
+
     /** Observa un activo no borrado; emite `null` si no existe o fue dado de baja. */
     @Query("SELECT * FROM assets WHERE id = :id AND deletedAt IS NULL")
     abstract fun observeById(id: String): Flow<AssetEntity?>

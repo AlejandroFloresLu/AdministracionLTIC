@@ -45,6 +45,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -91,6 +92,7 @@ fun InventoryDashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val soloPendientes by viewModel.soloPendientes.collectAsStateWithLifecycle()
 
     val categories = listOf(
         stringResource(R.string.category_all),
@@ -162,6 +164,15 @@ fun InventoryDashboardScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Caso de práctica 1: Switch de filtro local (UDF: el estado baja, el evento sube)
+            SoloPendientesSwitch(
+                checked = soloPendientes,
+                onCheckedChange = viewModel::onSoloPendientesChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // Contenido dinámico reactivo a la máquina de estados InventoryUiState
@@ -220,6 +231,30 @@ fun InventoryDashboardScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * [Caso de práctica 1] Interruptor sin estado propio: recibe `checked` y emite el cambio.
+ * No usa `remember`: la fuente de verdad es el ViewModel (SavedStateHandle).
+ */
+@Composable
+fun SoloPendientesSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = stringResource(R.string.filter_pending_only),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

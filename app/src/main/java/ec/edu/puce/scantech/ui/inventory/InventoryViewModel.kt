@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.model.Asset
+import ec.edu.puce.scantech.domain.usecase.ObtenerActivosPendientesUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -40,12 +41,20 @@ import kotlinx.coroutines.flow.stateIn
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class InventoryViewModel(
     private val savedStateHandle: SavedStateHandle,
-    private val obtenerActivosUseCase: ObtenerActivosUseCase
+    private val obtenerActivosUseCase: ObtenerActivosUseCase,
+    private val obtenerActivosPendientesUseCase: ObtenerActivosPendientesUseCase
 ) : ViewModel() {
 
     val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")
     val selectedCategory: StateFlow<String> =
         savedStateHandle.getStateFlow(KEY_SELECTED_CATEGORY, CATEGORIA_TODAS)
+
+    /**
+     * [Caso de práctica 1] Estado del Switch "Solo pendientes". Vive en SavedStateHandle
+     * para sobrevivir a la rotación y a la muerte del proceso, igual que la búsqueda.
+     */
+    val soloPendientes: StateFlow<Boolean> =
+        savedStateHandle.getStateFlow(KEY_SOLO_PENDIENTES, false)
 
     /** Se incrementa en [reintentar] para volver a suscribirse a Room tras un error. */
     private val reintentos = MutableStateFlow(0)
@@ -56,11 +65,21 @@ class InventoryViewModel(
         .distinctUntilChanged()
 
     val uiState: StateFlow<InventoryUiState> =
-        combine(textoConDebounce, selectedCategory, reintentos) { texto, categoria, _ ->
-            Filtro(texto, categoria.takeUnless { it.equals(CATEGORIA_TODAS, ignoreCase = true) })
+        combine(textoConDebounce, selectedCategory, soloPendientes, reintentos) { texto, categoria, pendientes, _ ->
+            Filtro(
+                texto = texto,
+                categoria = categoria.takeUnless { it.equals(CATEGORIA_TODAS, ignoreCase = true) },
+                soloPendientes = pendientes
+            )
         }
             .flatMapLatest { filtro ->
-                obtenerActivosUseCase(query = filtro.texto, category = filtro.categoria)
+                // flatMapLatest cancela la consulta anterior y se suscribe al flujo que corresponda
+                val fuente = if (filtro.soloPendientes) {
+                    obtenerActivosPendientesUseCase(query = filtro.texto, category = filtro.categoria)
+                } else {
+                    obtenerActivosUseCase(query = filtro.texto, category = filtro.categoria)
+                }
+                fuente
                     .map<List<Asset>, InventoryUiState> { InventoryUiState.Success(it) }
                     .catch { e ->
                         emit(InventoryUiState.Error(e.message ?: "No se pudo leer el inventario local"))
@@ -91,15 +110,25 @@ class InventoryViewModel(
     }
 
     /** Reintenta la consulta después de un error de lectura. */
+    /** [Caso de práctica 1] Evento del Switch: la UI solo avisa, el ViewModel decide. */
+    fun onSoloPendientesChange(activo: Boolean) {
+        savedStateHandle[KEY_SOLO_PENDIENTES] = activo
+    }
+
     fun reintentar() {
         reintentos.value++
     }
 
-    private data class Filtro(val texto: String, val categoria: String?)
+    private data class Filtro(
+        val texto: String,
+        val categoria: String?,
+        val soloPendientes: Boolean
+    )
 
     companion object {
         private const val KEY_SEARCH_QUERY = "key_inventory_search_query"
         private const val KEY_SELECTED_CATEGORY = "key_inventory_selected_category"
+        private const val KEY_SOLO_PENDIENTES = "key_inventory_solo_pendientes"
 
         /** Espera tras la última tecla antes de consultar Room. */
         const val DEBOUNCE_BUSQUEDA_MS = 300L
@@ -113,7 +142,8 @@ class InventoryViewModel(
                 val repository = appContainer().assetRepository
                 InventoryViewModel(
                     savedStateHandle = createSavedStateHandle(),
-                    obtenerActivosUseCase = ObtenerActivosUseCase(repository)
+                    obtenerActivosUseCase = ObtenerActivosUseCase(repository),
+                    obtenerActivosPendientesUseCase = ObtenerActivosPendientesUseCase(repository)
                 )
             }
         }

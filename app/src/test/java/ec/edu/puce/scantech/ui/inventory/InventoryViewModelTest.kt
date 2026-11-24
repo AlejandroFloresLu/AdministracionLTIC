@@ -5,6 +5,8 @@ import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.repository.AssetRepository
 import ec.edu.puce.scantech.domain.repository.SyncSummary
+import ec.edu.puce.scantech.domain.model.SyncStatus
+import ec.edu.puce.scantech.domain.usecase.ObtenerActivosPendientesUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -39,7 +41,11 @@ class InventoryViewModelTest {
     fun preparar() {
         Dispatchers.setMain(dispatcher)
         repo = RepositorioFalso()
-        vm = InventoryViewModel(SavedStateHandle(), ObtenerActivosUseCase(repo))
+        vm = InventoryViewModel(
+            SavedStateHandle(),
+            ObtenerActivosUseCase(repo),
+            ObtenerActivosPendientesUseCase(repo)
+        )
     }
 
     @After
@@ -139,12 +145,33 @@ class InventoryViewModelTest {
         assertTrue(vm.uiState.value is InventoryUiState.Success)
     }
 
+    @Test
+    fun elSwitchSoloPendientesCambiaDeFlujoSinPerderLaBusqueda() = runTest(dispatcher) {
+        repo.base.value = listOf(
+            activo("LTIC-000001", "Laptop Dell", SyncStatus.SYNCED),
+            activo("LTIC-000002", "Laptop HP", SyncStatus.PENDING_CREATE)
+        )
+        observar()
+        vm.onSearchQueryChange("laptop")
+        advanceUntilIdle()
+        assertEquals(2, (vm.uiState.value as InventoryUiState.Success).activos.size)
+
+        vm.onSoloPendientesChange(true)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("LTIC-000002"),
+            (vm.uiState.value as InventoryUiState.Success).activos.map { it.qrCode }
+        )
+        assertEquals("laptop" to null, repo.consultasPendientes.last())
+    }
+
     /** `uiState` usa WhileSubscribed: hace falta un suscriptor para que consulte. */
     private fun TestScope.observar() {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
     }
 
-    private fun activo(qr: String, nombre: String) = Asset(
+    private fun activo(qr: String, nombre: String, estado: SyncStatus = SyncStatus.SYNCED) = Asset(
         id = qr,
         qrCode = qr,
         name = nombre,
@@ -153,13 +180,15 @@ class InventoryViewModelTest {
         block = "A",
         shelf = "1",
         locker = "1",
-        units = 1
+        units = 1,
+        syncStatus = estado
     )
 
     /** Simula Room: un Flow que vuelve a emitir cuando cambia [base] y filtra como el DAO. */
     private class RepositorioFalso : AssetRepository {
         val base = MutableStateFlow<List<Asset>>(emptyList())
         val consultas = mutableListOf<Pair<String, String?>>()
+        val consultasPendientes = mutableListOf<Pair<String, String?>>()
         var fallar = false
 
         override fun observeAssets(query: String, category: String?): Flow<List<Asset>> {
@@ -168,6 +197,17 @@ class InventoryViewModelTest {
             return base.map { lista ->
                 lista.filter {
                     (category == null || it.category.equals(category, ignoreCase = true)) &&
+                        (query.isEmpty() || it.name.contains(query, ignoreCase = true))
+                }
+            }
+        }
+
+        override fun observePendingAssets(query: String, category: String?): Flow<List<Asset>> {
+            consultasPendientes += query to category
+            return base.map { lista ->
+                lista.filter {
+                    it.syncStatus != SyncStatus.SYNCED &&
+                        (category == null || it.category.equals(category, ignoreCase = true)) &&
                         (query.isEmpty() || it.name.contains(query, ignoreCase = true))
                 }
             }

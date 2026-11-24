@@ -32,6 +32,9 @@ interface AssetRepository {
     fun observeAssets(query: String = "", category: String? = null): Flow<List<Asset>>
 
     /** Emite el activo o `null` si no existe o fue dado de baja. */
+    /** [Caso de práctica 1] Catálogo filtrado solo con activos pendientes de sincronizar. */
+    fun observePendingAssets(query: String = "", category: String? = null): Flow<List<Asset>>
+
     fun observeById(id: String): Flow<Asset?>
 
     /** Cantidad de operaciones esperando subirse al servidor. */

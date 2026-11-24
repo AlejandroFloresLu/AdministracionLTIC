@@ -48,6 +48,12 @@ class AssetRepositoryImpl(
             category = category?.takeIf { it.isNotBlank() }
         ).map { it.toDomain() }
 
+    override fun observePendingAssets(query: String, category: String?): Flow<List<Asset>> =
+        assetDao.observePendingAssets(
+            query = AssetDao.escaparLike(query.trim()),
+            category = category?.takeIf { it.isNotBlank() }
+        ).map { it.toDomain() }
+
     override fun observeById(id: String): Flow<Asset?> =
         assetDao.observeById(id).map { it?.toDomain() }
 
