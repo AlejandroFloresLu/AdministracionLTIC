@@ -18,3 +18,8 @@ local.properties
 
 # Salidas de compilación de cualquier módulo (app/build, etc.)
 build/
+
+# Archivos locales de agente y defensa (no subir a main)
+.agent/skills/generar-ramas/SKILL.md
+GEMINI.md
+scripts/motor_casos_defensa.py
