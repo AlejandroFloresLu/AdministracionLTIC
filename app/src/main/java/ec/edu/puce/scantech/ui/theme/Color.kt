@@ -72,6 +72,4 @@ val StatusOperativoColor = Color(0xFF00C853)
 val StatusAdvertenciaColor = Color(0xFFFFAB00)
 val StatusCriticoColor = Color(0xFFFF3D00)
 
-// Sync Status Colors
-val SyncSyncedColor = Color(0xFF29B6F6)
-val SyncPendingColor = Color(0xFFFFA726)
+// Sync Status: ya no usa hexadecimales; ver SyncBadge (Caso de práctica 9)

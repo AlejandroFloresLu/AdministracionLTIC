@@ -67,8 +67,6 @@ import ec.edu.puce.scantech.ui.components.LoadingIndicator
 import ec.edu.puce.scantech.ui.theme.StatusAdvertenciaColor
 import ec.edu.puce.scantech.ui.theme.StatusCriticoColor
 import ec.edu.puce.scantech.ui.theme.StatusOperativoColor
-import ec.edu.puce.scantech.ui.theme.SyncPendingColor
-import ec.edu.puce.scantech.ui.theme.SyncSyncedColor
 
 /**
  * Pantalla principal del Catálogo de Inventario de ScanTech LTIC.
@@ -449,45 +447,55 @@ fun SyncBadge(
     status: SyncStatus,
     modifier: Modifier = Modifier
 ) {
-    val (icon, color, textRes) = when (status) {
+    // Caso de práctica 9: cada estado usa un par de roles semánticos de Material 3
+    // (contenedor + su "on"), nunca un hexadecimal. Con dynamic color, los tonos cambian
+    // junto con el fondo de pantalla y el contraste de lectura se mantiene.
+    val esquema = MaterialTheme.colorScheme
+    val (icon, colores, textRes) = when (status) {
         SyncStatus.SYNCED -> Triple(
             Icons.Rounded.CloudDone,
-            SyncSyncedColor,
+            esquema.secondaryContainer to esquema.onSecondaryContainer,
             R.string.sync_status_synced
         )
         SyncStatus.PENDING_CREATE -> Triple(
             Icons.Rounded.CloudUpload,
-            SyncPendingColor,
+            esquema.tertiaryContainer to esquema.onTertiaryContainer,
             R.string.sync_status_pending_create
         )
         SyncStatus.PENDING_UPDATE -> Triple(
             Icons.Rounded.CloudUpload,
-            SyncPendingColor,
+            esquema.tertiaryContainer to esquema.onTertiaryContainer,
             R.string.sync_status_pending_update
         )
         SyncStatus.PENDING_DELETE -> Triple(
             Icons.Rounded.CloudUpload,
-            MaterialTheme.colorScheme.error,
+            esquema.errorContainer to esquema.onErrorContainer,
             R.string.sync_status_pending_delete
         )
     }
+    val (contenedor, contenido) = colores
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = contenedor,
+        contentColor = contenido,
+        shape = RoundedCornerShape(50),
         modifier = modifier
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(12.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = stringResource(textRes),
-            style = MaterialTheme.typography.labelSmall,
-            color = color
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = stringResource(textRes),
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
     }
 }
 
