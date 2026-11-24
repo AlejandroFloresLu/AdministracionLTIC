@@ -329,6 +329,10 @@ fun AssetFormContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val unitsError = uiState.errores[CampoActivo.UNITS]
+                // Manejo Seguro de Nulos en la Capa de UI (Caso 5)
+                val safeUnits = uiState.units.trim().toIntOrNull() ?: 0
+                val esEntradaInvalida = uiState.units.isNotBlank() && uiState.units.trim().toIntOrNull() == null
+
                 OutlinedTextField(
                     value = uiState.units,
                     onValueChange = onUnitsChange,
@@ -336,8 +340,16 @@ fun AssetFormContent(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = unitsError != null,
                     supportingText = {
-                        if (unitsError != null) {
+                        if (esEntradaInvalida) {
+                            Text(
+                                text = "Entrada no numérica ('${uiState.units}'). Se procesará como $safeUnits mediante Elvis (?:)",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        } else if (unitsError != null) {
                             Text(text = unitsError, color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text("Valor numérico procesado: $safeUnits unidades")
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -402,7 +414,6 @@ fun AssetFormContent(
                     Text("Cancelar")
                 }
 
-                // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 12) ---
                 Button(
                     onClick = onSave,
                     enabled = !uiState.isSaving,
@@ -415,16 +426,6 @@ fun AssetFormContent(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    /* =================== [DEFENSA CASO 12: Botón Guardar con enabled Reactivo a Validación] ===================
-                    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
-                    // Cambia la propiedad 'enabled' de arriba por:
-                    // enabled = !uiState.isSaving && uiState.isValid && uiState.errores.isEmpty()
-
-                    // 💡 RESPUESTA TEÓRICA RÁPIDA:
-                    // - Principio de Prevención de Errores (Nielsen & Material 3): La UI debe guiar activamente al usuario
-                    //   impidiendo acciones inválidas antes de que ocurran, en lugar de esperar al envío para mostrar errores.
-                    // - Compose recalcula automáticamente el valor de 'enabled' en cada recomposición sin listeners manuales.
-                    ========================================================================================================== */
                     if (uiState.isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
