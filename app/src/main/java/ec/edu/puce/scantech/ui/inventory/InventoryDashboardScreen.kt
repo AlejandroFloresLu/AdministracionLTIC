@@ -187,6 +187,14 @@ fun InventoryDashboardScreen(
                         )
                     }
 
+                    // Caso de práctica 4: rama nueva exigida por el `when` exhaustivo
+                    is InventoryUiState.SinResultados -> {
+                        EmptyState(
+                            mensaje = stringResource(R.string.search_no_results, state.query),
+                            onResetFilters = viewModel::limpiarFiltros
+                        )
+                    }
+
                     is InventoryUiState.Success -> {
                         if (state.activos.isEmpty()) {
                             EmptyState(

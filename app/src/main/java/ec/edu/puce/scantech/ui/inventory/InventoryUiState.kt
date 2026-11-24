@@ -31,6 +31,14 @@ sealed interface InventoryUiState {
     /**
      * Estado de error con mensaje descriptivo para feedback accesible.
      */
+    /**
+     * [Caso de práctica 4] La búsqueda de texto no encontró activos. Es distinto de un catálogo
+     * vacío: aquí sí hay datos, pero ninguno coincide con [query].
+     */
+    data class SinResultados(
+        val query: String
+    ) : InventoryUiState
+
     data class Error(
         val mensaje: String
     ) : InventoryUiState

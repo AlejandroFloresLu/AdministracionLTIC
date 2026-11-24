@@ -139,6 +139,17 @@ class InventoryViewModelTest {
         assertTrue(vm.uiState.value is InventoryUiState.Success)
     }
 
+    @Test
+    fun unaBusquedaSinCoincidenciasEmiteSinResultados() = runTest(dispatcher) {
+        repo.base.value = listOf(activo("LTIC-000001", "Laptop Dell"))
+        observar()
+
+        vm.onSearchQueryChange("impresora")
+        advanceUntilIdle()
+
+        assertEquals(InventoryUiState.SinResultados("impresora"), vm.uiState.value)
+    }
+
     /** `uiState` usa WhileSubscribed: hace falta un suscriptor para que consulte. */
     private fun TestScope.observar() {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }

@@ -61,7 +61,14 @@ class InventoryViewModel(
         }
             .flatMapLatest { filtro ->
                 obtenerActivosUseCase(query = filtro.texto, category = filtro.categoria)
-                    .map<List<Asset>, InventoryUiState> { InventoryUiState.Success(it) }
+                    .map<List<Asset>, InventoryUiState> { activos ->
+                        // Caso de práctica 4: el ViewModel decide el estado; la UI solo lo dibuja
+                        if (activos.isEmpty() && filtro.texto.isNotBlank()) {
+                            InventoryUiState.SinResultados(filtro.texto)
+                        } else {
+                            InventoryUiState.Success(activos)
+                        }
+                    }
                     .catch { e ->
                         emit(InventoryUiState.Error(e.message ?: "No se pudo leer el inventario local"))
                     }
