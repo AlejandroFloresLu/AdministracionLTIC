@@ -32,6 +32,11 @@ data class AssetFormUiState(
     val isSaving: Boolean = false,
     val isEditMode: Boolean = false,
     val isSavedSuccess: Boolean = false,
-    val errorGeneral: String? = null
+    val errorGeneral: String? = null,
+    /**
+     * [Caso 5] Resultado del parseo seguro de [units] al presionar Guardar
+     * (`toIntOrNull() ?: 0`). `null` = aún no se procesa o el usuario volvió a escribir.
+     */
+    val unidadesProcesadas: Int? = null
 )
 
