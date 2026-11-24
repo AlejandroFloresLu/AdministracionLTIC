@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,13 +78,14 @@ import ec.edu.puce.scantech.ui.components.LoadingIndicator
 @Composable
 fun AssetFormScreen(
     assetId: String?,
+    initialQr: String? = null,
     onNavigateBack: () -> Unit,
     onSaveSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel: AssetFormViewModel = viewModel(
-        factory = AssetFormViewModel.provideFactory(assetId),
-        key = "AssetFormViewModel_${assetId ?: "new"}"
+        factory = AssetFormViewModel.provideFactory(assetId, initialQr),
+        key = "AssetFormViewModel_${assetId ?: "new"}_${initialQr ?: ""}"
     )
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -177,6 +179,7 @@ fun AssetFormContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -329,6 +332,10 @@ fun AssetFormContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val unitsError = uiState.errores[CampoActivo.UNITS]
+                // Manejo Seguro de Nulos en la Capa de UI (Caso 5)
+                val safeUnits = uiState.units.trim().toIntOrNull() ?: 0
+                val esEntradaInvalida = uiState.units.isNotBlank() && uiState.units.trim().toIntOrNull() == null
+
                 OutlinedTextField(
                     value = uiState.units,
                     onValueChange = onUnitsChange,
@@ -336,8 +343,16 @@ fun AssetFormContent(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = unitsError != null,
                     supportingText = {
-                        if (unitsError != null) {
+                        if (esEntradaInvalida) {
+                            Text(
+                                text = "Entrada no numérica ('${uiState.units}'). Se procesará como $safeUnits mediante Elvis (?:)",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        } else if (unitsError != null) {
                             Text(text = unitsError, color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text("Valor numérico procesado: $safeUnits unidades")
                         }
                     },
                     modifier = Modifier.weight(1f),

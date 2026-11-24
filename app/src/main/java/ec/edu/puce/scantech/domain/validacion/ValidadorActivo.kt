@@ -53,10 +53,10 @@ object ValidadorActivo {
             errores[CampoActivo.CATEGORIA] = "Selecciona una categoría"
         }
 
-        val unidades = datos.units.trim().toIntOrNull()
-        when {
-            unidades == null -> errores[CampoActivo.UNITS] = "Ingresa un número entero"
-            unidades < 0 -> errores[CampoActivo.UNITS] = "Las unidades no pueden ser negativas"
+        // Manejo Seguro de Nulos (Caso 5): toIntOrNull() con operador Elvis para asignar 0 por defecto ante nulos
+        val unidades = datos.units.trim().toIntOrNull() ?: 0
+        if (unidades < 0) {
+            errores[CampoActivo.UNITS] = "Las unidades no pueden ser negativas"
         }
 
         if (datos.observaciones.length > MAX_OBSERVACIONES) {

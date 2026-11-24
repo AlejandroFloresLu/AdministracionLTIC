@@ -46,6 +46,7 @@ import java.util.UUID
  */
 class AssetFormViewModel(
     val assetId: String?,
+    val initialQr: String? = null,
     private val guardarActivoUseCase: GuardarActivoUseCase,
     private val obtenerActivoPorIdUseCase: ObtenerActivoPorIdUseCase,
     private val savedStateHandle: SavedStateHandle
@@ -80,11 +81,12 @@ class AssetFormViewModel(
          * [ec.edu.puce.scantech.di.AppContainer]. El [SavedStateHandle] viene de
          * `createSavedStateHandle()`, así el borrador sobrevive a la muerte del proceso.
          */
-        fun provideFactory(assetId: String?): ViewModelProvider.Factory = viewModelFactory {
+        fun provideFactory(assetId: String?, initialQr: String? = null): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val repository = appContainer().assetRepository
                 AssetFormViewModel(
                     assetId = assetId,
+                    initialQr = initialQr,
                     guardarActivoUseCase = GuardarActivoUseCase(repository),
                     obtenerActivoPorIdUseCase = ObtenerActivoPorIdUseCase(repository),
                     savedStateHandle = createSavedStateHandle()
@@ -98,7 +100,7 @@ class AssetFormViewModel(
     // Inicialización del estado desde SavedStateHandle
     private val _uiState = MutableStateFlow(
         AssetFormUiState(
-            qrCode = savedStateHandle[KEY_QR] ?: "",
+            qrCode = savedStateHandle[KEY_QR] ?: initialQr ?: "",
             name = savedStateHandle[KEY_NAME] ?: "",
             category = savedStateHandle[KEY_CATEGORY] ?: "Laptops",
             technicalSpecs = savedStateHandle[KEY_SPECS] ?: "",
@@ -116,6 +118,10 @@ class AssetFormViewModel(
     val uiState: StateFlow<AssetFormUiState> = _uiState.asStateFlow()
 
     init {
+        // Si se recibe un código QR desde el escáner y no existía en el SavedStateHandle, persistirlo
+        if (savedStateHandle.get<String>(KEY_QR) == null && initialQr != null) {
+            savedStateHandle[KEY_QR] = initialQr
+        }
         if (isEditMode && !(savedStateHandle.get<Boolean>(KEY_INITIALIZED) ?: false)) {
             cargarActivoParaEdicion(assetId!!)
         } else {
@@ -272,6 +278,9 @@ class AssetFormViewModel(
         }
 
         val current = _uiState.value
+        // Manejo Seguro de Nulos en la Capa de UI (Caso 5)
+        // Se blinda el parseo con toIntOrNull() y operador Elvis (?: 0) para tolerar entradas alfabéticas o vacías sin colapsar
+        val parsedUnits = current.units.trim().toIntOrNull() ?: 0
 
         val assetToSave = Asset(
             id = assetId ?: UUID.randomUUID().toString(),

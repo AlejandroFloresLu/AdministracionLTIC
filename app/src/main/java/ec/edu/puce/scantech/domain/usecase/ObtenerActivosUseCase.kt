@@ -33,3 +33,26 @@ class ObtenerActivosUseCase(
     }
 }
 
+/* =================== [DEFENSA CASO 21: Caso de Uso Puro FiltrarActivosPorEstadoUseCase con invoke] ===================
+// 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
+// Descomenta esta clase de caso de uso de dominio puro:
+// class FiltrarActivosPorEstadoUseCase {
+//     /**
+//      * Sobrecarga del operador `invoke` que permite invocar la instancia como si fuera una función:
+//      * val filtrados = filtrarActivosUseCase(listaActivos, soloActivos = true)
+//      */
+//     operator fun invoke(activos: List<Asset>, soloActivos: Boolean): List<Asset> =
+//         if (soloActivos) {
+//             activos.filter { it.deletedAt == null }
+//         } else {
+//             activos.filter { it.deletedAt != null }
+//         }
+// }
+
+// 💡 RESPUESTA TEÓRICA RÁPIDA:
+// - Los Casos de Uso (Interactors) representan una sola acción de negocio (Single Responsibility Principle).
+// - El modificador 'operator fun invoke' permite llamar a la instancia del caso de uso con sintaxis funcional
+//   (ej. 'casoDeUso(params)'), mejorando la expresividad y simplificando el consumo desde el ViewModel.
+// - Es Kotlin puro sin dependencias de base de datos ni Android, garantizando pruebas unitarias independientes.
+====================================================================================================================== */
+
