@@ -20,6 +20,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
@@ -91,6 +97,21 @@ fun InventoryDashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val syncState by viewModel.syncState.collectAsStateWithLifecycle()
+
+    // Caso de práctica 7: el resultado de la sincronización se muestra una vez en un Snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(syncState) {
+        val mensaje = when (val estado = syncState) {
+            is SyncUiState.Success -> estado.mensaje
+            is SyncUiState.Error -> estado.mensaje
+            SyncUiState.Idle, SyncUiState.Loading -> null
+        }
+        if (mensaje != null) {
+            snackbarHostState.showSnackbar(mensaje)
+            viewModel.descartarMensajeSync()
+        }
+    }
 
     val categories = listOf(
         stringResource(R.string.category_all),
@@ -102,6 +123,7 @@ fun InventoryDashboardScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -111,6 +133,24 @@ fun InventoryDashboardScreen(
                     )
                 },
                 actions = {
+                    // Caso de práctica 7: deshabilitado mientras espera al servidor (sin envíos dobles)
+                    IconButton(
+                        onClick = viewModel::sincronizar,
+                        enabled = syncState !is SyncUiState.Loading
+                    ) {
+                        if (syncState is SyncUiState.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Sync,
+                                contentDescription = stringResource(R.string.sync_action),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     IconButton(onClick = onNavigateToCreate) {
                         Icon(
                             imageVector = Icons.Rounded.Add,

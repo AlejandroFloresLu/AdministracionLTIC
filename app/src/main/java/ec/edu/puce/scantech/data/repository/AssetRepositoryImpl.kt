@@ -11,6 +11,7 @@ import ec.edu.puce.scantech.data.remote.AssetApi
 import ec.edu.puce.scantech.data.remote.AssetDto
 import ec.edu.puce.scantech.data.remote.SyncBatchRequest
 import ec.edu.puce.scantech.data.remote.SyncOperationDto
+import ec.edu.puce.scantech.data.remote.safeApiCall
 import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.repository.AssetRepository
@@ -20,8 +21,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
-import retrofit2.HttpException
-import java.io.IOException
 
 /**
  * Implementación de [AssetRepository] sobre Room + Retrofit.
@@ -112,50 +111,41 @@ class AssetRepositoryImpl(
 
     // ------------------------------------------------------------- Sincronización
 
-    override suspend fun sync(): Result<SyncSummary> {
-        return try {
-            var enviadas = 0
-            val rechazos = mutableListOf<RechazoSync>()
+    // Caso de práctica 7: los errores de red se clasifican en safeApiCall (sin try-catch repetidos)
+    override suspend fun sync(): Result<SyncSummary> = safeApiCall {
+        var enviadas = 0
+        val rechazos = mutableListOf<RechazoSync>()
 
-            // Lotes acotados para controlar el payload en conexiones inestables. Cada lote se
-            // confirma por separado: si la red se corta, lo ya aceptado queda guardado.
-            for (lote in syncQueueDao.listarPendientes().chunked(TAMANO_LOTE)) {
-                val request = SyncBatchRequest(
-                    lote.map {
-                        SyncOperationDto(
-                            opId = it.id.toString(),
-                            tipo = it.tipo.name,
-                            asset = json.decodeFromString(AssetDto.serializer(), it.payload)
-                        )
-                    }
-                )
-                val resultados = api.sincronizar(request).resultados.associateBy { it.opId }
-                val (ok, fallidas) = lote.partition { resultados[it.id.toString()]?.aceptado == true }
-
-                assetDao.confirmOperations(ok)
-                fallidas.forEach { op ->
-                    syncQueueDao.sumarIntento(op.id)
-                    rechazos += RechazoSync(
-                        op.assetId,
-                        resultados[op.id.toString()]?.motivo ?: "El servidor no confirmó la operación"
+        // Lotes acotados para controlar el payload en conexiones inestables. Cada lote se
+        // confirma por separado: si la red se corta, lo ya aceptado queda guardado.
+        for (lote in syncQueueDao.listarPendientes().chunked(TAMANO_LOTE)) {
+            val request = SyncBatchRequest(
+                lote.map {
+                    SyncOperationDto(
+                        opId = it.id.toString(),
+                        tipo = it.tipo.name,
+                        asset = json.decodeFromString(AssetDto.serializer(), it.payload)
                     )
                 }
-                enviadas += ok.size
+            )
+            val resultados = api.sincronizar(request).resultados.associateBy { it.opId }
+            val (ok, fallidas) = lote.partition { resultados[it.id.toString()]?.aceptado == true }
+
+            assetDao.confirmOperations(ok)
+            fallidas.forEach { op ->
+                syncQueueDao.sumarIntento(op.id)
+                rechazos += RechazoSync(
+                    op.assetId,
+                    resultados[op.id.toString()]?.motivo ?: "El servidor no confirmó la operación"
+                )
             }
-
-            val remotos = api.obtenerCambios(assetDao.lastSyncedUpdatedAt())
-            val paraRevisar = assetDao.applyRemoteChanges(remotos.map { it.toEntity() })
-
-            Result.Success(SyncSummary(enviadas, rechazos, remotos.size, paraRevisar))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            Result.Error("Sin conexión con el servidor. Los cambios se enviarán más tarde.", e)
-        } catch (e: HttpException) {
-            Result.Error("El servidor respondió con error ${e.code()}", e)
-        } catch (e: Exception) {
-            Result.Error("No se pudo sincronizar: ${e.message ?: "error desconocido"}", e)
+            enviadas += ok.size
         }
+
+        val remotos = api.obtenerCambios(assetDao.lastSyncedUpdatedAt())
+        val paraRevisar = assetDao.applyRemoteChanges(remotos.map { it.toEntity() })
+
+        SyncSummary(enviadas, rechazos, remotos.size, paraRevisar)
     }
 
     // -------------------------------------------------------------------- Helpers

@@ -9,12 +9,16 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.model.Asset
+import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
+import ec.edu.puce.scantech.domain.usecase.SincronizarActivosUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -40,7 +44,8 @@ import kotlinx.coroutines.flow.stateIn
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class InventoryViewModel(
     private val savedStateHandle: SavedStateHandle,
-    private val obtenerActivosUseCase: ObtenerActivosUseCase
+    private val obtenerActivosUseCase: ObtenerActivosUseCase,
+    private val sincronizarActivosUseCase: SincronizarActivosUseCase
 ) : ViewModel() {
 
     val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")
@@ -49,6 +54,13 @@ class InventoryViewModel(
 
     /** Se incrementa en [reintentar] para volver a suscribirse a Room tras un error. */
     private val reintentos = MutableStateFlow(0)
+
+    /**
+     * [Caso de práctica 7] Estado de la sincronización. El MutableStateFlow es privado: solo el
+     * ViewModel emite estados; la UI recibe una versión de solo lectura (asStateFlow).
+     */
+    private val _syncState = MutableStateFlow<SyncUiState>(SyncUiState.Idle)
+    val syncState: StateFlow<SyncUiState> = _syncState.asStateFlow()
 
     private val textoConDebounce = searchQuery
         .debounce { texto -> if (texto.isBlank()) 0L else DEBOUNCE_BUSQUEDA_MS }
@@ -91,6 +103,29 @@ class InventoryViewModel(
     }
 
     /** Reintenta la consulta después de un error de lectura. */
+    /**
+     * [Caso de práctica 7] Sube la cola de cambios y descarga los del servidor.
+     * Corre en viewModelScope: si el usuario sale de la app, la corrutina se cancela sola.
+     * Retrofit y Room usan funciones suspend que no bloquean el hilo principal.
+     */
+    fun sincronizar() {
+        if (_syncState.value is SyncUiState.Loading) return
+        viewModelScope.launch {
+            _syncState.value = SyncUiState.Loading
+            _syncState.value = when (val resultado = sincronizarActivosUseCase()) {
+                is Result.Success -> SyncUiState.Success(
+                    "Sincronizado: ${resultado.data.sent} enviados, ${resultado.data.received} recibidos"
+                )
+                is Result.Error -> SyncUiState.Error(resultado.message)
+            }
+        }
+    }
+
+    /** La UI ya mostró el mensaje: vuelve al estado de reposo. */
+    fun descartarMensajeSync() {
+        if (_syncState.value !is SyncUiState.Loading) _syncState.value = SyncUiState.Idle
+    }
+
     fun reintentar() {
         reintentos.value++
     }
@@ -113,7 +148,8 @@ class InventoryViewModel(
                 val repository = appContainer().assetRepository
                 InventoryViewModel(
                     savedStateHandle = createSavedStateHandle(),
-                    obtenerActivosUseCase = ObtenerActivosUseCase(repository)
+                    obtenerActivosUseCase = ObtenerActivosUseCase(repository),
+                    sincronizarActivosUseCase = SincronizarActivosUseCase(repository)
                 )
             }
         }

@@ -6,6 +6,8 @@ import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.repository.AssetRepository
 import ec.edu.puce.scantech.domain.repository.SyncSummary
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
+import ec.edu.puce.scantech.domain.usecase.SincronizarActivosUseCase
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -39,7 +41,11 @@ class InventoryViewModelTest {
     fun preparar() {
         Dispatchers.setMain(dispatcher)
         repo = RepositorioFalso()
-        vm = InventoryViewModel(SavedStateHandle(), ObtenerActivosUseCase(repo))
+        vm = InventoryViewModel(
+            SavedStateHandle(),
+            ObtenerActivosUseCase(repo),
+            SincronizarActivosUseCase(repo)
+        )
     }
 
     @After
@@ -139,6 +145,36 @@ class InventoryViewModelTest {
         assertTrue(vm.uiState.value is InventoryUiState.Success)
     }
 
+    @Test
+    fun sincronizarPasaPorLoadingYTerminaEnSuccess() = runTest(dispatcher) {
+        repo.resultadoSync = Result.Success(SyncSummary(sent = 2, rejected = emptyList(), received = 1, needsReview = emptyList()))
+
+        vm.sincronizar()
+        runCurrent()
+        assertEquals(SyncUiState.Loading, vm.syncState.value)
+
+        repo.liberarSync.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(SyncUiState.Success("Sincronizado: 2 enviados, 1 recibidos"), vm.syncState.value)
+
+        vm.descartarMensajeSync()
+        assertEquals(SyncUiState.Idle, vm.syncState.value)
+    }
+
+    @Test
+    fun unFalloDeRedTerminaEnErrorSinCerrarLaApp() = runTest(dispatcher) {
+        repo.resultadoSync = Result.Error("Sin conexión con el servidor. Los cambios se enviarán más tarde.")
+        repo.liberarSync.complete(Unit)
+
+        vm.sincronizar()
+        advanceUntilIdle()
+
+        assertEquals(
+            SyncUiState.Error("Sin conexión con el servidor. Los cambios se enviarán más tarde."),
+            vm.syncState.value
+        )
+    }
+
     /** `uiState` usa WhileSubscribed: hace falta un suscriptor para que consulte. */
     private fun TestScope.observar() {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
@@ -161,6 +197,8 @@ class InventoryViewModelTest {
         val base = MutableStateFlow<List<Asset>>(emptyList())
         val consultas = mutableListOf<Pair<String, String?>>()
         var fallar = false
+        var resultadoSync: Result<SyncSummary> = Result.Error("sin configurar")
+        val liberarSync = CompletableDeferred<Unit>()
 
         override fun observeAssets(query: String, category: String?): Flow<List<Asset>> {
             consultas += query to category
@@ -181,6 +219,9 @@ class InventoryViewModelTest {
         override suspend fun update(asset: Asset): Result<Asset> = error("no usado")
         override suspend fun updateObservations(id: String, observations: String?): Result<Asset> = error("no usado")
         override suspend fun delete(id: String): Result<Unit> = error("no usado")
-        override suspend fun sync(): Result<SyncSummary> = error("no usado")
+        override suspend fun sync(): Result<SyncSummary> {
+            liberarSync.await()
+            return resultadoSync
+        }
     }
 }
