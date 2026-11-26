@@ -23,43 +23,11 @@ import kotlinx.coroutines.flow.Flow
  *
  * Todas las consultas que alimentan la UI excluyen los registros con `deletedAt`.
  */
-/* =================== [DEFENSA CASO 30: Trazabilidad del Flujo SSOT de Extremo a Extremo] ===================
- * 💡 RESPUESTA TEÓRICA RÁPIDA:
- * - Single Source of Truth (SSOT - Fuente Única de Verdad):
- *   La base de datos local SQLite (Room) es la ÚNICA fuente de verdad autoritativa para la UI de la app,
- *   NO el backend remoto ni variables temporales en memoria.
- * - Flujo Reactivo Unidireccional:
- *   [1] Room DAO: observeAssets() emite un Flow<List<AssetEntity>> reactivo automático ante cualquier cambio en la tabla.
- *   [2] Repositorio: AssetRepositoryImpl mapea AssetEntity -> Asset (Modelo de Dominio Puro) desacoplando infraestructura.
- *   [3] Caso de Uso: ObtenerActivosUseCase orquesta el Flow exponiéndolo limpiamente al ViewModel.
- *   [4] ViewModel: Convierte el Flow frío en StateFlow caliente mediante '.stateIn(SharingStarted.WhileSubscribed(5000))',
- *       otorgando una ventana de gracia de 5 segundos ante cambios de configuración (rotación) para no reiniciar la consulta.
- *   [5] Compose UI: 'collectAsStateWithLifecycle()' recolecta el estado deteniéndose automáticamente cuando la UI está en STOPPED.
- *   LazyColumn se recompone en <50ms reflejando inserciones o actualizaciones sin requerir recargas manuales (cero polling).
- ============================================================================================================ */
 
 @Dao
 abstract class AssetDao {
 
     // ---------------------------------------------------------------- Lecturas (UI)
-
-    /* =================== [DEFENSA CASO 26: Consulta Reactiva por Bloque con Flow en Room] ===================
-    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
-    // Descomenta esta consulta reactiva para filtrar por bloque físico:
-    // @Query("""
-    //     SELECT * FROM assets
-    //     WHERE block = :bloque
-    //       AND deletedAt IS NULL
-    //     ORDER BY name COLLATE NOCASE ASC
-    // """)
-    // abstract fun observarPorBloque(bloque: String): Flow<List<AssetEntity>>
-
-    // 💡 RESPUESTA TEÓRICA RÁPIDA:
-    // - Consultas reactivas en Room: Retornar 'Flow<T>' hace que Room registre un InvalidationTracker sobre la tabla 'assets'.
-    // - Cada vez que ocurre un INSERT, UPDATE o DELETE sobre cualquier fila de 'assets', Room reejecuta la query
-    //   en un hilo secundario y emite la nueva lista automáticamente al colector.
-    // - Las funciones que retornan 'Flow' NO deben ser 'suspend': el Flow es frío y se ejecuta al colectarse.
-    ======================================================================================================== */
 
     /**
      * Catálogo filtrado. [query] busca (LIKE) en nombre, código QR y especificaciones;
@@ -122,16 +90,6 @@ abstract class AssetDao {
     abstract suspend fun update(asset: AssetEntity): Int
 
     /** Borrado lógico: conserva la fila para poder avisar la baja al servidor. */
-    /* =================== [DEFENSA CASO 28: Baja Lógica (Soft Delete) vs Baja Física (Hard Delete)] ===================
-    // 💡 RESPUESTA TEÓRICA RÁPIDA:
-    // - Borrado Físico (Hard Delete): 'DELETE FROM assets WHERE id = :id'. Elimina permanentemente la fila de SQLite.
-    //   En una arquitectura Offline-First es fatal: si el usuario borra sin conexión y la fila desaparece, la app
-    //   no tendría forma de recordar qué registro debe eliminarse en el servidor cuando retorne el internet.
-    // - Borrado Lógico (Soft Delete): 'UPDATE assets SET deletedAt = :ts, syncStatus = PENDING_DELETE'.
-    //   La fila se conserva en SQLite pero se oculta de la UI con 'WHERE deletedAt IS NULL'. Permite encolar
-    //   la orden de baja y sincronizarla con el servidor cuando haya conectividad. Solo tras la confirmación
-    //   remota se ejecuta el borrado físico ('purgeConfirmedDeletion').
-    ================================================================================================================== */
     @Query(
         """
         UPDATE assets
@@ -194,16 +152,6 @@ abstract class AssetDao {
     // ------------------------------------------------------------ Transacciones
 
     /** Guarda un activo nuevo y encola su alta, todo en una sola transacción. */
-    /* =================== [DEFENSA CASO 27: Atomicidad Transaccional con @Transaction en Room] ===================
-    // 💡 RESPUESTA TEÓRICA RÁPIDA:
-    // - Principio ACID (Atomicidad): La inserción del activo en 'assets' y el encolado de la operación
-    //   en 'sync_queue' deben ocurrir de forma indivisible: o se confirman ambas (COMMIT), o ninguna (ROLLBACK).
-    // - Si omitiéramos la anotación '@Transaction', un corte de energía, muerte del proceso o excepción en disco
-    //   entre las dos sentencias dejaría un activo creado localmente pero sin orden de subida al servidor,
-    //   generando inconsistencia permanente de inventario.
-    // - Al estar en una clase abstracta ('abstract class AssetDao'), Room genera la implementación que envuelve
-    //   el bloque en 'beginTransaction()' / 'setTransactionSuccessful()' / 'endTransaction()'.
-    ============================================================================================================= */
     @Transaction
     open suspend fun insertWithQueue(asset: AssetEntity, payload: String) {
         insert(asset.copy(syncStatus = SyncStatus.PENDING_CREATE))
@@ -309,16 +257,6 @@ abstract class AssetDao {
     private fun AssetEntity.paraSync() = ActivoSincronizable(id = id, updatedAt = updatedAt, units = units)
 
     companion object {
-        /* =================== [DEFENSA CASO 29: Escape de Caracteres Comodín en Consultas LIKE] ===================
-        // 💡 RESPUESTA TEÓRICA RÁPIDA:
-        // - En SQL LIKE, '%' representa cero o más caracteres arbitrarios y '_' representa exactamente un carácter.
-        // - Si un usuario busca '100%' o 'LTIC_01', sin escapar, '%' y '_' se interpretarían como comodines SQL,
-        //   devolviendo resultados erróneos o provocando un escaneo completo de la tabla innecesario.
-        // - 'escaparLike()' antepone la barra invertida '\\' a '%', '_' y '\\', y la consulta SQL declara:
-        //   "name LIKE '%' || :query || '%' ESCAPE '\'", garantizando que el carácter se busque como literal exacto.
-        // - Inyección SQL: Room previene la inyección SQL clásica al parametrizar los valores con '?', pero la lógica
-        //   de comodines dentro del patrón LIKE requiere este saneamiento explícito a nivel de aplicación.
-        ========================================================================================================== */
         /** Escapa `%`, `_` y `\` para que el texto del usuario se busque literalmente en LIKE. */
         fun escaparLike(texto: String): String =
             texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

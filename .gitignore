@@ -19,7 +19,13 @@ local.properties
 # Salidas de compilación de cualquier módulo (app/build, etc.)
 build/
 
-# Archivos locales de agente y defensa (no subir a main)
-.agent/skills/generar-ramas/SKILL.md
+# Configuración local del IDE y de herramientas (cada integrante tiene la suya)
+.idea/
+.vscode/
+
+# Archivos locales de agentes, material de estudio y documentos del curso (no son parte de la app)
+.agent/
 GEMINI.md
 scripts/motor_casos_defensa.py
+teoria/
+Indicaciones Fase*.md
