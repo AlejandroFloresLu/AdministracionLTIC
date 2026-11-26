@@ -8,14 +8,14 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ec.edu.puce.scantech.appContainer
-import ec.edu.puce.scantech.domain.Result
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.usecase.GuardarActivoUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivoPorIdUseCase
-import ec.edu.puce.scantech.domain.validacion.CampoActivo
+import ec.edu.puce.scantech.domain.usecase.ResultadoGuardado
 import ec.edu.puce.scantech.domain.validacion.DatosActivo
 import ec.edu.puce.scantech.domain.validacion.ResultadoValidacion
 import ec.edu.puce.scantech.domain.validacion.ValidadorActivo
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,7 +49,8 @@ class AssetFormViewModel(
     val initialQr: String? = null,
     private val guardarActivoUseCase: GuardarActivoUseCase,
     private val obtenerActivoPorIdUseCase: ObtenerActivoPorIdUseCase,
-    private val savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     companion object {
@@ -62,6 +63,8 @@ class AssetFormViewModel(
          */
         fun procesarUnidades(texto: String): Int =
             texto.trim().toIntOrNull() ?: UNIDADES_POR_DEFECTO
+
+        const val MENSAJE_CORREGIR_CAMPOS = "Por favor corrige los campos señalados antes de guardar."
 
         private const val KEY_QR = "form_qr_code"
         private const val KEY_NAME = "form_name"
@@ -133,7 +136,7 @@ class AssetFormViewModel(
      * Carga los datos del activo desde la base de datos Room para poblar el formulario de edición.
      */
     private fun cargarActivoParaEdicion(id: String) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val asset = obtenerActivoPorIdUseCase(id).firstOrNull()
             withContext(Dispatchers.Main) {
                 if (asset != null) {
@@ -268,20 +271,20 @@ class AssetFormViewModel(
      * Criterio crítico del enunciado: Si existen errores de validación, el botón Guardar NO persiste nada.
      */
     fun saveAsset() {
+        // Un guardado en curso: ignorar toques repetidos para no escribir dos veces
+        if (_uiState.value.isSaving) return
+
         // Caso 5: se procesa la entrada numérica antes de validar; con letras o vacío no hay crash
         val unidadesProcesadas = procesarUnidades(_uiState.value.units)
         _uiState.update { it.copy(unidadesProcesadas = unidadesProcesadas) }
 
+        // Primer filtro sin tocar Room: si un campo es inválido no se llama al caso de uso
         if (!revalidar()) {
-            _uiState.update { it.copy(errorGeneral = "Por favor corrige los campos señalados antes de guardar.") }
+            _uiState.update { it.copy(errorGeneral = MENSAJE_CORREGIR_CAMPOS) }
             return
         }
 
         val current = _uiState.value
-        // Manejo Seguro de Nulos en la Capa de UI (Caso 5)
-        // Se blinda el parseo con toIntOrNull() y operador Elvis (?: 0) para tolerar entradas alfabéticas o vacías sin colapsar
-        val parsedUnits = current.units.trim().toIntOrNull() ?: 0
-
         val assetToSave = Asset(
             id = assetId ?: UUID.randomUUID().toString(),
             qrCode = current.qrCode.trim(),
@@ -297,18 +300,31 @@ class AssetFormViewModel(
             observations = current.observations.trim().ifBlank { null }
         )
 
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(isSaving = true, errorGeneral = null) }
+        // isSaving se marca antes de lanzar la corrutina para que un segundo toque ya lo vea
+        _uiState.update { it.copy(isSaving = true, errorGeneral = null) }
 
-            val result = guardarActivoUseCase(asset = assetToSave, isEditMode = isEditMode)
-            withContext(Dispatchers.Main) {
-                when (result) {
-                    is Result.Success -> {
-                        _uiState.update { it.copy(isSaving = false, isSavedSuccess = true) }
+        viewModelScope.launch {
+            // El caso de uso valida otra vez, ahora con la unicidad del QR consultada en Room
+            val result = withContext(ioDispatcher) {
+                guardarActivoUseCase(asset = assetToSave, isEditMode = isEditMode)
+            }
+            when (result) {
+                is ResultadoGuardado.Guardado -> {
+                    _uiState.update { it.copy(isSaving = false, isSavedSuccess = true) }
+                }
+                is ResultadoGuardado.Invalido -> {
+                    // Errores por campo (p. ej. QR duplicado) para que la UI los muestre junto al input
+                    _uiState.update {
+                        it.copy(
+                            isSaving = false,
+                            errores = result.errores,
+                            isValid = false,
+                            errorGeneral = MENSAJE_CORREGIR_CAMPOS
+                        )
                     }
-                    is Result.Error -> {
-                        _uiState.update { it.copy(isSaving = false, errorGeneral = result.message) }
-                    }
+                }
+                is ResultadoGuardado.Fallo -> {
+                    _uiState.update { it.copy(isSaving = false, errorGeneral = result.mensaje) }
                 }
             }
         }
