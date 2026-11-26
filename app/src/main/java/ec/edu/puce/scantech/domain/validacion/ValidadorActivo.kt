@@ -34,15 +34,19 @@ object ValidadorActivo {
 
     const val MAX_OBSERVACIONES = 500
     private val FORMATO_QR = Regex("^LTIC-\\d{6}$")
+    const val MENSAJE_QR_DUPLICADO = "Ya existe un activo con este código"
+
+    /** `true` si el QR tiene el formato `LTIC-000123`; solo así vale la pena consultar su unicidad. */
+    fun formatoQrValido(qrCode: String): Boolean = FORMATO_QR.matches(qrCode.trim())
 
     fun validar(datos: DatosActivo, qrYaExiste: Boolean): ResultadoValidacion {
         val errores = mutableMapOf<CampoActivo, String>()
 
         when {
             datos.qrCode.isBlank() -> errores[CampoActivo.QR_CODE] = "El código QR es obligatorio"
-            !FORMATO_QR.matches(datos.qrCode.trim()) ->
+            !formatoQrValido(datos.qrCode) ->
                 errores[CampoActivo.QR_CODE] = "Formato esperado: LTIC-000123"
-            qrYaExiste -> errores[CampoActivo.QR_CODE] = "Ya existe un activo con este código"
+            qrYaExiste -> errores[CampoActivo.QR_CODE] = MENSAJE_QR_DUPLICADO
         }
 
         if (datos.nombre.isBlank()) {
