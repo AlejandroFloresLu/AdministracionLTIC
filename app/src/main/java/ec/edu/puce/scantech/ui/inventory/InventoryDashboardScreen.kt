@@ -181,11 +181,6 @@ fun InventoryDashboardScreen(
                     .weight(1f)
             ) {
                 when (val state = uiState) {
-                    is InventoryUiState.Idle -> {
-                        // Estado inicial pasivo
-                        LoadingIndicator(mensaje = stringResource(R.string.loading_assets))
-                    }
-
                     is InventoryUiState.Loading -> {
                         LoadingIndicator(mensaje = stringResource(R.string.loading_assets))
                     }
@@ -198,10 +193,17 @@ fun InventoryDashboardScreen(
                     }
 
                     is InventoryUiState.Success -> {
-                        if (state.activos.isEmpty()) {
+                        if (state.activos.isEmpty() && state.hayFiltros) {
+                            // Hay activos, pero ninguno cumple la búsqueda o la categoría
                             EmptyState(
                                 mensaje = stringResource(R.string.empty_inventory_description),
                                 onResetFilters = viewModel::limpiarFiltros
+                            )
+                        } else if (state.activos.isEmpty()) {
+                            // La base no tiene activos todavía: no hay filtros que limpiar
+                            EmptyState(
+                                titulo = stringResource(R.string.empty_catalog_title),
+                                mensaje = stringResource(R.string.empty_catalog_description)
                             )
                         } else {
                             // Lista reciclada de alto rendimiento: LazyColumn (nunca Column + forEach)
@@ -217,11 +219,17 @@ fun InventoryDashboardScreen(
                             ) {
                                 items(
                                     items = state.activos,
-                                    key = { it.id } // Clave única para recomposiciones inteligentes
+                                    // Clave estable: al insertar o borrar, Compose mueve las
+                                    // tarjetas existentes en vez de recomponerlas todas.
+                                    key = { it.id },
+                                    contentType = { "activo" }
                                 ) { activo ->
+                                    // Asset es inmutable (solo val) y onNavigateToDetail es la
+                                    // misma referencia en cada pasada: Compose puede saltarse
+                                    // las tarjetas que no cambiaron (skipping).
                                     ActivoCard(
                                         activo = activo,
-                                        onClick = { onNavigateToDetail(activo.id) }
+                                        onClick = onNavigateToDetail
                                     )
                                 }
                             }
@@ -343,13 +351,13 @@ fun CategoryFilterSection(
 @Composable
 fun ActivoCard(
     activo: Asset,
-    onClick: () -> Unit,
+    onClick: (assetId: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable { onClick(activo.id) },
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(

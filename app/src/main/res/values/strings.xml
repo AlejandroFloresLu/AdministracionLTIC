@@ -11,6 +11,8 @@
     <string name="loading_assets">Cargando inventario LTIC...</string>
     <string name="empty_inventory_title">Sin activos disponibles</string>
     <string name="empty_inventory_description">No se encontraron equipos tecnológicos que coincidan con la búsqueda o categoría seleccionada.</string>
+    <string name="empty_catalog_title">Inventario vacío</string>
+    <string name="empty_catalog_description">Todavía no hay activos registrados. Toca + para agregar el primero o escanea un código QR.</string>
     <string name="error_loading_inventory">Ocurrió un error al consultar los datos locales</string>
     <string name="retry_button">Reintentar</string>
     <string name="reset_filters">Limpiar Filtros</string>
