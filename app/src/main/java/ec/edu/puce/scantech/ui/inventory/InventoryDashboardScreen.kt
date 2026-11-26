@@ -119,22 +119,6 @@ fun InventoryDashboardScreen(
                         )
                     }
 
-                    /* =================== [DEFENSA CASO 8: Botón de Navegación a HistorialBajas] ===================
-                    // 🛠️ PASO PARA ACTIVAR EN EL EXAMEN:
-                    // Descomenta este IconButton en la barra superior:
-                    // IconButton(onClick = { /* navController.navigate(NavRoute.HistorialBajasRoute) */ }) {
-                    //     Icon(
-                    //         imageVector = androidx.compose.material.icons.Icons.Rounded.History,
-                    //         contentDescription = "Historial de Bajas",
-                    //         tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    //     )
-                    // }
-
-                    // 💡 RESPUESTA TEÓRICA RÁPIDA:
-                    // - Las TopAppBar de Material Design 3 agrupan acciones contextuales en el slot 'actions'.
-                    // - Desacoplamiento de eventos: En una arquitectura UDF estricta, la pantalla expone lambdas
-                    //   (ej. 'onNavigateToHistorial: () -> Unit') elevando el evento hacia el NavGraph.
-                    ================================================================================================ */
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,

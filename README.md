@@ -3,9 +3,9 @@
 Aplicación Android nativa para auditar y administrar el inventario de hardware del departamento de Logística Tecnológica (LTIC) de la PUCE. Funciona **offline-first**: los datos viven en el teléfono (Room) y se sincronizan con una API REST cuando hay conexión.
 
 Proyecto final de **Programación Móvil**, PUCE.
-Estado: **Fase 1, "Cimientos de arquitectura de la interfaz"**.
+Estado: **Fase 2, "Integración, resiliencia y defensa final"** (en curso).
 
-## Funcionalidades de la Fase 1
+## Funcionalidades
 
 | Pantalla | Qué hace |
 |---|---|
@@ -13,7 +13,7 @@ Estado: **Fase 1, "Cimientos de arquitectura de la interfaz"**.
 | Formulario | Alta y edición de activos, con validación en tiempo real y estado que sobrevive a la rotación y a la muerte del proceso (`SavedStateHandle`) |
 | Ficha técnica | Datos completos del activo, observaciones de auditoría, edición y baja lógica con confirmación |
 | Permiso de cámara | Pantalla que explica para qué se usa la cámara antes de pedir el permiso |
-| Escáner | Interfaz del escáner con un botón de detección **simulada**. El escaneo real con CameraX y ML Kit corresponde a la Fase 2 |
+| Escáner | Lectura de códigos QR con la cámara (CameraX + ML Kit, en el dispositivo y sin internet), linterna y vibración al detectar. Si el QR existe abre la ficha; si no, abre el formulario con el código ya escrito |
 
 ## Stack
 
@@ -27,7 +27,7 @@ Estado: **Fase 1, "Cimientos de arquitectura de la interfaz"**.
 | Persistencia | Room 2.6.1 (esquema exportado y migraciones) |
 | Red | Retrofit 2.11.0, OkHttp 4.12.0, kotlinx.serialization 1.7.3 |
 | Concurrencia | Corrutinas 1.9.0, `StateFlow`, `viewModelScope` |
-| Fase 2 (preparado) | CameraX 1.4.0, ML Kit Barcode 18.3.1, ZXing 3.5.3 para generar QR |
+| Cámara e IA local | CameraX 1.4.0 y ML Kit Barcode 18.3.1 (escaneo de QR); ZXing 3.5.3 para generar QR |
 
 Todas las dependencias se declaran en el catálogo de versiones. No hay versiones escritas a mano en los `build.gradle.kts`.
 
@@ -45,7 +45,7 @@ app/src/main/java/ec/edu/puce/scantech/
 │   ├── inventory/   Catálogo
 │   ├── form/        Formulario de alta/edición
 │   ├── detail/      Ficha técnica
-│   ├── scanner/     Escáner (simulado en Fase 1)
+│   ├── scanner/     Escáner QR con CameraX + ML Kit
 │   ├── permissions/ Permiso de cámara
 │   ├── navigation/  NavRoutes (@Serializable) y NavGraph
 │   └── theme/       Tema Material 3
@@ -115,7 +115,9 @@ Para practicar un caso: crear una rama propia desde `main`, resolverlo con el ti
 ## Equipo
 
 - Alejandro Flores
-- Alexander Carrión
+- Paúl Alexander Rosero Carrión
 - Gabriel Aguinaga
 - Michael Molina
 - Joselyn Cadena
+
+Documentación del proyecto (documento maestro e informe de actividades) en [`docs/`](docs/).
