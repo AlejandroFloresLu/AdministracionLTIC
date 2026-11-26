@@ -64,11 +64,6 @@ import ec.edu.puce.scantech.data.model.EstadoOperativo
 import ec.edu.puce.scantech.ui.components.EmptyState
 import ec.edu.puce.scantech.ui.components.ErrorState
 import ec.edu.puce.scantech.ui.components.LoadingIndicator
-import ec.edu.puce.scantech.ui.theme.StatusAdvertenciaColor
-import ec.edu.puce.scantech.ui.theme.StatusCriticoColor
-import ec.edu.puce.scantech.ui.theme.StatusOperativoColor
-import ec.edu.puce.scantech.ui.theme.SyncPendingColor
-import ec.edu.puce.scantech.ui.theme.SyncSyncedColor
 
 /**
  * Pantalla principal del Catálogo de Inventario de ScanTech LTIC.
@@ -409,20 +404,22 @@ fun EstadoOperativoBadge(
     estado: EstadoOperativo,
     modifier: Modifier = Modifier
 ) {
+    // Roles semánticos de Material 3 (contenedor + "on"): sin hexadecimales, siguen al color dinámico
+    val esquema = MaterialTheme.colorScheme
     val (bgColor, textColor, labelRes) = when (estado) {
         EstadoOperativo.OPERATIVO -> Triple(
-            StatusOperativoColor.copy(alpha = 0.15f),
-            StatusOperativoColor,
+            esquema.secondaryContainer,
+            esquema.onSecondaryContainer,
             R.string.status_operativo
         )
         EstadoOperativo.ADVERTENCIA -> Triple(
-            StatusAdvertenciaColor.copy(alpha = 0.2f),
-            StatusAdvertenciaColor,
+            esquema.tertiaryContainer,
+            esquema.onTertiaryContainer,
             R.string.status_advertencia
         )
         EstadoOperativo.CRITICO -> Triple(
-            StatusCriticoColor.copy(alpha = 0.2f),
-            StatusCriticoColor,
+            esquema.errorContainer,
+            esquema.onErrorContainer,
             R.string.status_critico
         )
     }
@@ -450,25 +447,27 @@ fun SyncBadge(
     status: SyncStatus,
     modifier: Modifier = Modifier
 ) {
+    // Roles semánticos de Material 3: sin hexadecimales, siguen al color dinámico
+    val esquema = MaterialTheme.colorScheme
     val (icon, color, textRes) = when (status) {
         SyncStatus.SYNCED -> Triple(
             Icons.Rounded.CloudDone,
-            SyncSyncedColor,
+            esquema.primary,
             R.string.sync_status_synced
         )
         SyncStatus.PENDING_CREATE -> Triple(
             Icons.Rounded.CloudUpload,
-            SyncPendingColor,
+            esquema.tertiary,
             R.string.sync_status_pending_create
         )
         SyncStatus.PENDING_UPDATE -> Triple(
             Icons.Rounded.CloudUpload,
-            SyncPendingColor,
+            esquema.tertiary,
             R.string.sync_status_pending_update
         )
         SyncStatus.PENDING_DELETE -> Triple(
             Icons.Rounded.CloudUpload,
-            MaterialTheme.colorScheme.error,
+            esquema.error,
             R.string.sync_status_pending_delete
         )
     }

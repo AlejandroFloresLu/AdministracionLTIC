@@ -67,11 +67,4 @@ val ScanTechDarkOnError = Color(0xFF690005)
 val ScanTechDarkErrorContainer = Color(0xFF93000A)
 val ScanTechDarkOnErrorContainer = Color(0xFFFFDAD6)
 
-// Operational Status Indicators (Audit Ficha)
-val StatusOperativoColor = Color(0xFF00C853)
-val StatusAdvertenciaColor = Color(0xFFFFAB00)
-val StatusCriticoColor = Color(0xFFFF3D00)
-
-// Sync Status Colors
-val SyncSyncedColor = Color(0xFF29B6F6)
-val SyncPendingColor = Color(0xFFFFA726)
+// Los estados (operativo y sincronización) usan roles de MaterialTheme.colorScheme, no colores fijos.
