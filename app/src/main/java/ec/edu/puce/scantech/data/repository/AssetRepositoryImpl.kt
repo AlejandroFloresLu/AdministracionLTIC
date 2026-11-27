@@ -143,7 +143,9 @@ class AssetRepositoryImpl(
                 enviadas += ok.size
             }
 
-            val remotos = api.obtenerCambios(assetDao.lastSyncedUpdatedAt())
+            // Bajada incremental: solo lo posterior al cursor guardado en Room. El DAO aplica
+            // los cambios sin pisar pendientes locales y avanza el cursor en la misma transacción.
+            val remotos = api.obtenerCambios(assetDao.lastSyncTimestamp())
             val paraRevisar = assetDao.applyRemoteChanges(remotos.map { it.toEntity() })
 
             Result.Success(SyncSummary(enviadas, rechazos, remotos.size, paraRevisar))

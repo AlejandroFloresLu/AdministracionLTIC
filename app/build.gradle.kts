@@ -75,6 +75,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.retrofit.kotlinx.serialization.converter)
 
+    // Sincronización en segundo plano (SyncWorker)
+    implementation(libs.androidx.work.runtime.ktx)
+
     // Códigos QR
     implementation(libs.zxing.core)
 

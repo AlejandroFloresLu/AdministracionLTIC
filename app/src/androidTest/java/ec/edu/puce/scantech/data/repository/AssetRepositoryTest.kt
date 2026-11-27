@@ -136,6 +136,31 @@ class AssetRepositoryTest {
     }
 
     @Test
+    fun laSegundaSyncPideSoloLosCambiosPosterioresAlCursorGuardado() = runBlocking {
+        api.remotos = listOf(
+            AssetDto(id = "r1", qrCode = "LTIC-000050", name = "Remoto", category = "Mouse", updatedAt = 5_000L),
+            AssetDto(id = "r2", qrCode = "LTIC-000051", name = "Remoto 2", category = "Mouse", updatedAt = 7_000L)
+        )
+        repo.sync()
+
+        api.remotos = emptyList()
+        repo.sync()
+
+        assertEquals(listOf(0L, 7_000L), api.pedidosDesde)
+    }
+
+    @Test
+    fun siLaBajadaFallaElCursorNoAvanza() = runBlocking {
+        api.remotos = listOf(
+            AssetDto(id = "r1", qrCode = "LTIC-000050", name = "Remoto", category = "Mouse", updatedAt = 5_000L)
+        )
+        api.sinRed = true
+        repo.sync()
+
+        assertEquals(0L, db.assetDao().lastSyncTimestamp())
+    }
+
+    @Test
     fun observeAssetsBuscaYFiltraPorCategoria() = runBlocking {
         repo.create(nuevo("LTIC-000001", nombre = "Mouse Gamer", categoria = "Mouse"))
         repo.create(nuevo("LTIC-000002", nombre = "Teclado Gamer", categoria = "Teclado"))
@@ -209,6 +234,7 @@ class AssetRepositoryTest {
         var aceptar = true
         var sinRed = false
         var remotos: List<AssetDto> = emptyList()
+        val pedidosDesde = mutableListOf<Long>()
 
         override suspend fun sincronizar(lote: SyncBatchRequest): SyncBatchResponse {
             if (sinRed) throw IOException("sin red")
@@ -218,6 +244,7 @@ class AssetRepositoryTest {
 
         override suspend fun obtenerCambios(updatedSince: Long): List<AssetDto> {
             if (sinRed) throw IOException("sin red")
+            pedidosDesde += updatedSince
             return remotos
         }
 

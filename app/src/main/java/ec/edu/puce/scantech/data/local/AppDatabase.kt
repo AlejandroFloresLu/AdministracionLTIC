@@ -12,6 +12,7 @@ import ec.edu.puce.scantech.data.local.dao.CategoryDao
 import ec.edu.puce.scantech.data.local.dao.SyncQueueDao
 import ec.edu.puce.scantech.data.local.entity.AssetEntity
 import ec.edu.puce.scantech.data.local.entity.CategoryEntity
+import ec.edu.puce.scantech.data.local.entity.SyncMetadataEntity
 import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
 
 /**
@@ -24,9 +25,10 @@ import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
     entities = [
         AssetEntity::class,
         CategoryEntity::class,
-        SyncOperationEntity::class
+        SyncOperationEntity::class,
+        SyncMetadataEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(SyncStatusConverter::class)
@@ -59,6 +61,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 -> v3: agrega `sync_metadata` para guardar `lastSyncTimestamp`. Arranca vacía
+         * (cursor = 0): la primera bajada trae todo y Room no pisa los pendientes locales.
+         */
+        val MIGRACION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `sync_metadata` (" +
+                        "`clave` TEXT NOT NULL, `valor` INTEGER NOT NULL, PRIMARY KEY(`clave`))"
+                )
+            }
+        }
+
         @Volatile
         private var instancia: AppDatabase? = null
 
@@ -70,7 +85,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE_ARCHIVO
                 )
-                    .addMigrations(MIGRACION_1_2)
+                    .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
                     .addCallback(SembradoInicial)
                     .build()
                     .also { instancia = it }

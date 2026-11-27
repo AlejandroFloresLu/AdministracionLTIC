@@ -183,7 +183,7 @@ class AssetDaoTest {
         assertEquals("Local", dao.getById("1")?.name)
         assertEquals("Nuevo", dao.getById("2")?.name)
         assertEquals("Otro", dao.getById("3")?.name)
-        assertEquals(3_000L, dao.lastSyncedUpdatedAt())
+        assertEquals(3_000L, dao.lastSyncTimestamp())
     }
 
     @Test
@@ -267,6 +267,92 @@ class AssetDaoTest {
         assertEquals(1_000L, sinCambios.updatedAt)
         assertEquals(SyncStatus.SYNCED, sinCambios.syncStatus)
         assertTrue(cola.listarPendientes().isEmpty())
+    }
+
+    // ------------------------------------------------ Bajada incremental (#36)
+
+    @Test
+    fun sinSincronizarElCursorEsCero() = runBlocking {
+        assertEquals(0L, dao.lastSyncTimestamp())
+    }
+
+    @Test
+    fun elCursorSeGuardaYNuncaRetrocede() = runBlocking {
+        dao.applyRemoteChanges(listOf(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 5_000L)))
+        assertEquals(5_000L, dao.lastSyncTimestamp())
+
+        // Una respuesta vacía o con datos más viejos no mueve el cursor hacia atrás
+        dao.applyRemoteChanges(emptyList())
+        dao.applyRemoteChanges(listOf(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 4_000L)))
+        assertEquals(5_000L, dao.lastSyncTimestamp())
+    }
+
+    @Test
+    fun unPendienteLocalNoSePisaAunqueElServidorSeaMasReciente() = runBlocking {
+        dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "Local", actualizado = 1_000L), payload = "p")
+
+        val revisar = dao.applyRemoteChanges(
+            listOf(activo(id = "1", qr = "LTIC-000001", nombre = "Servidor", estado = SyncStatus.SYNCED, actualizado = 9_000L))
+        )
+
+        val local = dao.getById("1")!!
+        assertEquals("Local", local.name)
+        assertEquals(SyncStatus.PENDING_CREATE, local.syncStatus)
+        assertEquals("la operación pendiente sigue en la cola", 1, cola.listarPendientes().size)
+        assertEquals(listOf("1"), revisar)
+    }
+
+    @Test
+    fun unaBajaRemotaNoBorraUnPendienteLocal() = runBlocking {
+        dao.insert(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 1_000L))
+        dao.updateWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "Editado", actualizado = 2_000L), payload = "p")
+
+        dao.applyRemoteChanges(
+            listOf(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 3_000L).copy(deletedAt = 3_000L))
+        )
+
+        assertEquals("Editado", dao.getById("1")?.name)
+        assertEquals(SyncStatus.PENDING_UPDATE, dao.getById("1")?.syncStatus)
+    }
+
+    @Test
+    fun elCursorSeDetieneAntesDeUnCambioEnRevisionParaVolverAPedirlo() = runBlocking {
+        dao.insertWithQueue(activo(id = "1", qr = "LTIC-000001", nombre = "Local", actualizado = 1_000L), payload = "p")
+
+        dao.applyRemoteChanges(
+            listOf(
+                activo(id = "2", qr = "LTIC-000002", nombre = "B", estado = SyncStatus.SYNCED, actualizado = 2_000L),
+                activo(id = "1", qr = "LTIC-000001", nombre = "Servidor", estado = SyncStatus.SYNCED, actualizado = 3_000L),
+                activo(id = "3", qr = "LTIC-000003", nombre = "C", estado = SyncStatus.SYNCED, actualizado = 4_000L)
+            )
+        )
+
+        assertEquals(2_999L, dao.lastSyncTimestamp())
+        assertEquals("B", dao.getById("2")?.name)
+        assertEquals("C", dao.getById("3")?.name)
+    }
+
+    @Test
+    fun unaBajaRemotaEliminaElActivoSincronizadoYLiberaSuQr() = runBlocking {
+        dao.insert(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 1_000L))
+
+        dao.applyRemoteChanges(
+            listOf(activo(id = "1", qr = "LTIC-000001", nombre = "A", estado = SyncStatus.SYNCED, actualizado = 2_000L).copy(deletedAt = 2_000L))
+        )
+
+        assertNull(dao.getById("1"))
+        assertFalse(dao.existsQrCode("LTIC-000001", null))
+        assertEquals(2_000L, dao.lastSyncTimestamp())
+    }
+
+    @Test
+    fun unaBajaRemotaDeUnActivoDesconocidoNoSeInserta() = runBlocking {
+        dao.applyRemoteChanges(
+            listOf(activo(id = "9", qr = "LTIC-000009", nombre = "X", estado = SyncStatus.SYNCED, actualizado = 2_000L).copy(deletedAt = 2_000L))
+        )
+
+        assertNull(dao.getById("9"))
+        assertEquals(2_000L, dao.lastSyncTimestamp())
     }
 
     private fun activo(
