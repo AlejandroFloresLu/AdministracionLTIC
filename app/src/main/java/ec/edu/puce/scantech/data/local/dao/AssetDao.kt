@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import ec.edu.puce.scantech.data.local.SyncStatus
 import ec.edu.puce.scantech.data.local.entity.AssetEntity
+import ec.edu.puce.scantech.data.local.entity.SyncMetadataEntity
 import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
 import ec.edu.puce.scantech.domain.sync.ActivoSincronizable
 import ec.edu.puce.scantech.domain.sync.PoliticaConflictos
@@ -77,9 +78,15 @@ abstract class AssetDao {
     )
     abstract suspend fun existsQrCode(qrCode: String, excluirId: String?): Boolean
 
-    /** Marca de tiempo más reciente entre los activos ya sincronizados (para el pull incremental). */
-    @Query("SELECT COALESCE(MAX(updatedAt), 0) FROM assets WHERE syncStatus = 'SYNCED'")
-    abstract suspend fun lastSyncedUpdatedAt(): Long
+    /**
+     * Cursor de la bajada incremental: `updatedAt` del servidor del último cambio aplicado.
+     * `0` si nunca se sincronizó (se pide todo).
+     */
+    @Query("SELECT COALESCE((SELECT valor FROM sync_metadata WHERE clave = '${SyncMetadataEntity.LAST_SYNC_TIMESTAMP}'), 0)")
+    abstract suspend fun lastSyncTimestamp(): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    protected abstract suspend fun guardarMetadato(metadato: SyncMetadataEntity)
 
     // ------------------------------------------------------------------ Escrituras
 
@@ -148,6 +155,16 @@ abstract class AssetDao {
         """
     )
     abstract suspend fun purgeConfirmedDeletion(id: String): Int
+
+    /** Elimina un activo sincronizado que el servidor dio de baja; nunca toca pendientes locales. */
+    @Query(
+        """
+        DELETE FROM assets
+        WHERE id = :id AND syncStatus = 'SYNCED'
+          AND NOT EXISTS (SELECT 1 FROM sync_queue WHERE assetId = :id)
+        """
+    )
+    protected abstract suspend fun deleteSyncedRemoved(id: String): Int
 
     // ------------------------------------------------------------ Transacciones
 
@@ -227,31 +244,45 @@ abstract class AssetDao {
     }
 
     /**
-     * Incorpora los cambios descargados del servidor aplicando [PoliticaConflictos].
+     * Bajada incremental (Estrategia de Datos §4): aplica en Room los cambios que el servidor
+     * hizo después de [lastSyncTimestamp] y avanza el cursor, todo en una sola transacción.
+     *
+     * - Activo nuevo o sincronizado: se toma la versión del servidor (o se elimina si el
+     *   servidor lo dio de baja). Un QR que ya usa otro activo se manda a revisión.
+     * - Activo con cambios locales pendientes (PENDING_*): **nunca se pisa** ni se vacía su
+     *   cola; se sube en la próxima ronda. Si [PoliticaConflictos] no da ganador al local
+     *   (el servidor es más reciente o hay conflicto de `units`), se marca para revisión.
+     *
+     * El cursor solo avanza hasta antes del primer cambio enviado a revisión, para que esos
+     * cambios se vuelvan a descargar y evaluar en la siguiente ronda en lugar de perderse.
+     *
      * @return ids de los activos que requieren revisión manual (se conserva la copia local).
      */
     @Transaction
     open suspend fun applyRemoteChanges(remotos: List<AssetEntity>): List<String> {
-        val paraRevisar = mutableListOf<String>()
+        val paraRevisar = mutableListOf<AssetEntity>()
         for (remoto in remotos) {
             val local = getById(remoto.id)
             when {
-                local == null -> {
+                local == null || local.syncStatus == SyncStatus.SYNCED -> when {
+                    remoto.deletedAt != null -> if (local != null) deleteSyncedRemoved(local.id)
                     // Un QR repetido en otro id no se puede insertar sin romper el índice único.
-                    if (existsQrCode(remoto.qrCode, remoto.id)) paraRevisar += remoto.id else upsert(remoto)
+                    existsQrCode(remoto.qrCode, remoto.id) -> paraRevisar += remoto
+                    else -> upsert(remoto.copy(syncStatus = SyncStatus.SYNCED))
                 }
-                local.syncStatus == SyncStatus.SYNCED -> if (!existsQrCode(remoto.qrCode, remoto.id)) upsert(remoto) else paraRevisar += remoto.id
-                else -> when (PoliticaConflictos.resolver(local.paraSync(), remoto.paraSync(), unitsVisto = null)) {
-                    is ResolucionConflicto.GanaServidor -> {
-                        clearQueueOf(local.id)
-                        upsert(remoto)
-                    }
-                    is ResolucionConflicto.GanaLocal -> Unit
-                    is ResolucionConflicto.RevisionManual -> paraRevisar += remoto.id
+                else -> {
+                    val resolucion = PoliticaConflictos.resolver(local.paraSync(), remoto.paraSync(), unitsVisto = null)
+                    if (resolucion !is ResolucionConflicto.GanaLocal) paraRevisar += remoto
                 }
             }
         }
-        return paraRevisar
+
+        val primeroEnRevision = paraRevisar.minOfOrNull { it.updatedAt }
+        val nuevoCursor = if (primeroEnRevision != null) primeroEnRevision - 1 else remotos.maxOfOrNull { it.updatedAt }
+        if (nuevoCursor != null && nuevoCursor > lastSyncTimestamp()) {
+            guardarMetadato(SyncMetadataEntity(SyncMetadataEntity.LAST_SYNC_TIMESTAMP, nuevoCursor))
+        }
+        return paraRevisar.map { it.id }
     }
 
     private fun AssetEntity.paraSync() = ActivoSincronizable(id = id, updatedAt = updatedAt, units = units)
