@@ -73,4 +73,5 @@
     <string name="sync_done">Sincronización completa: %1$d enviados, %2$d recibidos</string>
     <string name="sync_done_with_review">Sincronización completa: %1$d enviados, %2$d recibidos, %3$d en revisión</string>
     <string name="sync_failed">No se pudo sincronizar: %1$s</string>
+    <string name="audit_hash_label">Auditoría: %1$s</string>
 </resources>

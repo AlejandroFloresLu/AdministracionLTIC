@@ -37,13 +37,16 @@ fun ScanTechNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = NavRoute.DashboardRoute,
+        startDestination = NavRoute.DashboardRoute(auditHash = AUDIT_HASH_INICIAL),
         modifier = modifier
     ) {
         // Pantalla Principal: Catálogo General de Inventario
-        composable<NavRoute.DashboardRoute> {
+        composable<NavRoute.DashboardRoute> { backStackEntry ->
+            // Caso 1: el catálogo extrae auditHash de la ruta tipada con toRoute()
+            val routeArgs = backStackEntry.toRoute<NavRoute.DashboardRoute>()
             InventoryDashboardScreen(
                 viewModel = viewModel,
+                auditHash = routeArgs.auditHash,
                 onNavigateToDetail = { assetId ->
                     navController.navigate(NavRoute.AssetDetailRoute(assetId = assetId))
                 },
@@ -117,10 +120,12 @@ fun ScanTechNavGraph(
                     navController.popBackStack()
                 },
                 onSaveSuccess = {
-                    // --- CÓDIGO ORIGINAL (Comentar si el docente pide activar el Caso 7) ---
-                    // El catálogo observa Room: se actualiza solo, no hace falta recargarlo.
-                    navController.popBackStack()
-
+                    // Caso 1: el formulario inyecta el hash de auditoría al volver al catálogo.
+                    // popUpTo reemplaza el catálogo anterior para no duplicarlo en el back stack.
+                    navController.navigate(NavRoute.DashboardRoute(auditHash = AUDIT_HASH_FORMULARIO)) {
+                        popUpTo<NavRoute.DashboardRoute> { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -128,3 +133,8 @@ fun ScanTechNavGraph(
     }
 }
 
+/** [Caso 1] Hash con el que abre la app, antes de cualquier registro. */
+private const val AUDIT_HASH_INICIAL = "SESION-INICIAL"
+
+/** [Caso 1] Código estático que el formulario envía al catálogo tras guardar. */
+private const val AUDIT_HASH_FORMULARIO = "HASH-2026-RDA3"

@@ -18,9 +18,13 @@ sealed interface NavRoute {
 
     /**
      * Pantalla principal del Catálogo de Inventario LTIC con búsqueda y filtros rápidos.
+     * @param auditHash [Caso 1] Hash de sesión para auditoría de inmutabilidad. Es obligatorio
+     *   y no anulable: toda navegación al catálogo debe enviarlo o el proyecto no compila.
      */
     @Serializable
-    data object DashboardRoute : NavRoute
+    data class DashboardRoute(
+        val auditHash: String
+    ) : NavRoute
 
     /**
      * Pantalla de Escáner Óptico de Códigos QR mediante Edge AI.

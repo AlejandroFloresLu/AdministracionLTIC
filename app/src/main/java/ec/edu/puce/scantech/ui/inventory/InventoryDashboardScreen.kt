@@ -85,6 +85,7 @@ import ec.edu.puce.scantech.ui.components.LoadingIndicator
 @Composable
 fun InventoryDashboardScreen(
     viewModel: InventoryViewModel,
+    auditHash: String,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToScanner: () -> Unit,
     onNavigateToCreate: () -> Unit,
@@ -120,10 +121,18 @@ fun InventoryDashboardScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = stringResource(R.string.inventory_title),
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = stringResource(R.string.inventory_title),
+                            fontWeight = FontWeight.Bold
+                        )
+                        // Caso 1: parámetro auditHash leído de la ruta tipada
+                        Text(
+                            text = stringResource(R.string.audit_hash_label, auditHash),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 },
                 actions = {
                     IconButton(
