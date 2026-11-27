@@ -69,4 +69,8 @@
     <string name="sync_status_pending_update">Pendiente Actualizar</string>
     <string name="sync_status_pending_delete">Pendiente Eliminar</string>
     <string name="inventory_summary">%1$d activos · %2$d unidades · %3$d pendientes</string>
+    <string name="sync_now">Sincronizar ahora</string>
+    <string name="sync_done">Sincronización completa: %1$d enviados, %2$d recibidos</string>
+    <string name="sync_done_with_review">Sincronización completa: %1$d enviados, %2$d recibidos, %3$d en revisión</string>
+    <string name="sync_failed">No se pudo sincronizar: %1$s</string>
 </resources>

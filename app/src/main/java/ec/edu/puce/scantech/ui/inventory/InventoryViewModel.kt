@@ -12,11 +12,15 @@ import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.model.ResumenInventario
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerResumenInventarioUseCase
+import ec.edu.puce.scantech.domain.usecase.SincronizarAhoraUseCase
+import ec.edu.puce.scantech.domain.sync.EstadoSincronizacion
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -43,8 +47,55 @@ import kotlinx.coroutines.flow.stateIn
 class InventoryViewModel(
     private val savedStateHandle: SavedStateHandle,
     private val obtenerActivosUseCase: ObtenerActivosUseCase,
-    obtenerResumenInventarioUseCase: ObtenerResumenInventarioUseCase
+    obtenerResumenInventarioUseCase: ObtenerResumenInventarioUseCase,
+    private val sincronizarAhoraUseCase: SincronizarAhoraUseCase
 ) : ViewModel() {
+
+    /** Estado de la sincronización manual: el botón muestra un indicador mientras [EstadoSincronizacion.enProgreso]. */
+    private val _estadoSync = MutableStateFlow<EstadoSincronizacion>(EstadoSincronizacion.Inactiva)
+    val estadoSync: StateFlow<EstadoSincronizacion> = _estadoSync.asStateFlow()
+
+    /** Resultado de una sincronización pedida con el botón, para mostrarlo una vez en un Snackbar. */
+    private val _resultadoSync = MutableStateFlow<EstadoSincronizacion?>(null)
+    val resultadoSync: StateFlow<EstadoSincronizacion?> = _resultadoSync.asStateFlow()
+
+    /** `true` desde que el usuario toca el botón hasta que llega el resultado de esa ronda. */
+    private var esperandoResultado = false
+
+    /** Ronda cuyo resultado ya estaba a la vista al tocar el botón; no se vuelve a anunciar. */
+    private var rondaAnterior: String? = null
+
+    init {
+        viewModelScope.launch {
+            sincronizarAhoraUseCase.observarEstado().collect { estado ->
+                _estadoSync.value = estado
+                val ronda = estado.ronda()
+                if (esperandoResultado && ronda != null && ronda != rondaAnterior) {
+                    esperandoResultado = false
+                    _resultadoSync.value = estado
+                }
+            }
+        }
+    }
+
+    /** Disparador manual. Se ignora si ya hay una sincronización en camino. */
+    fun sincronizarAhora() {
+        if (_estadoSync.value.enProgreso) return
+        rondaAnterior = _estadoSync.value.ronda()
+        esperandoResultado = true
+        sincronizarAhoraUseCase()
+    }
+
+    /** La UI ya mostró [resultadoSync]. */
+    fun resultadoSyncMostrado() {
+        _resultadoSync.value = null
+    }
+
+    private fun EstadoSincronizacion.ronda(): String? = when (this) {
+        is EstadoSincronizacion.Completada -> ronda
+        is EstadoSincronizacion.Fallida -> ronda
+        else -> null
+    }
 
     val searchQuery: StateFlow<String> = savedStateHandle.getStateFlow(KEY_SEARCH_QUERY, "")
     val selectedCategory: StateFlow<String> =
@@ -129,11 +180,13 @@ class InventoryViewModel(
         /** Factory que toma el repositorio compartido del [ec.edu.puce.scantech.di.AppContainer]. */
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val repository = appContainer().assetRepository
+                val container = appContainer()
+                val repository = container.assetRepository
                 InventoryViewModel(
                     savedStateHandle = createSavedStateHandle(),
                     obtenerActivosUseCase = ObtenerActivosUseCase(repository),
-                    obtenerResumenInventarioUseCase = ObtenerResumenInventarioUseCase(repository)
+                    obtenerResumenInventarioUseCase = ObtenerResumenInventarioUseCase(repository),
+                    sincronizarAhoraUseCase = SincronizarAhoraUseCase(container.programadorSync)
                 )
             }
         }

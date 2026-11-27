@@ -22,19 +22,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
+import ec.edu.puce.scantech.domain.sync.EstadoSincronizacion
+import ec.edu.puce.scantech.domain.sync.ProgramadorSync
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.HttpException
+import retrofit2.Response
 
 class AssetRepositoryTest {
 
     private lateinit var db: AppDatabase
     private lateinit var api: ApiFalsa
     private lateinit var repo: AssetRepositoryImpl
+    private lateinit var programador: ProgramadorContador
 
     @Before
     fun preparar() {
         val contexto = InstrumentationRegistry.getInstrumentation().targetContext
         db = AppDatabase.enMemoria(contexto)
         api = ApiFalsa()
-        repo = AssetRepositoryImpl(db.assetDao(), db.syncQueueDao(), api, clock = { 10_000L })
+        programador = ProgramadorContador()
+        repo = AssetRepositoryImpl(db.assetDao(), db.syncQueueDao(), api, clock = { 10_000L }, programador = programador)
     }
 
     @After
@@ -91,15 +100,85 @@ class AssetRepositoryTest {
     }
 
     @Test
-    fun syncConOperacionRechazadaLaDejaEnColaYSumaIntento() = runBlocking {
+    fun syncConOperacionRechazadaLaMarcaParaRevisionYNoLaReintenta() = runBlocking {
         repo.create(nuevo("LTIC-000001"))
         api.aceptar = false
+        api.motivo = "QR ya registrado en el servidor"
 
         val resultado = repo.sync() as Result.Success
 
         assertEquals(1, resultado.data.rejected.size)
+        val op = db.syncQueueDao().listarPendientes().single()
+        assertTrue(op.enRevision)
+        assertEquals("QR ya registrado en el servidor", op.motivoRevision)
+
+        // La siguiente ronda ya no la envía
+        api.aceptar = true
+        repo.sync()
+        assertEquals(1, api.lotes.size)
         assertEquals(1, repo.observePendingCount().first())
-        assertEquals(1, db.syncQueueDao().listarPendientes().single().intentos)
+    }
+
+    @Test
+    fun unErrorHttp4xxAlSubirMarcaElLoteParaRevisionYNoEsUnFallo() = runBlocking {
+        repo.create(nuevo("LTIC-000001"))
+        repo.create(nuevo("LTIC-000002"))
+        api.codigoHttp = 400
+
+        val resultado = repo.sync()
+
+        assertTrue("un 4xx no se reintenta: la ronda termina", resultado is Result.Success)
+        assertEquals(2, (resultado as Result.Success).data.rejected.size)
+        assertTrue(db.syncQueueDao().listarPendientes().all { it.enRevision })
+        assertTrue(db.syncQueueDao().listarParaEnviar().isEmpty())
+    }
+
+    @Test
+    fun unErrorHttp5xxAlSubirDevuelveErrorParaReintentarYNoMarcaNada() = runBlocking {
+        repo.create(nuevo("LTIC-000001"))
+        api.codigoHttp = 503
+
+        val resultado = repo.sync()
+
+        assertTrue(resultado is Result.Error)
+        assertEquals(503, ((resultado as Result.Error).cause as HttpException).code())
+        assertTrue(db.syncQueueDao().listarPendientes().none { it.enRevision })
+    }
+
+    @Test
+    fun lasOperacionesPosterioresDeUnActivoEnRevisionNoSeEnvian() = runBlocking {
+        val activo = (repo.create(nuevo("LTIC-000001")) as Result.Success).data
+        api.aceptar = false
+        repo.sync()
+
+        repo.update(activo.copy(name = "Editado"))
+        repo.create(nuevo("LTIC-000002"))
+        api.aceptar = true
+        repo.sync()
+
+        val enviadas = api.lotes.last().operaciones
+        assertEquals(listOf("LTIC-000002"), enviadas.map { it.asset.qrCode })
+    }
+
+    @Test
+    fun cadaEscrituraLocalDisparaLaSincronizacionAlGuardar() = runBlocking {
+        val activo = (repo.create(nuevo("LTIC-000001")) as Result.Success).data
+        repo.update(activo.copy(name = "Editado"))
+        repo.updateObservations(activo.id, "Rayado")
+        repo.delete(activo.id)
+
+        assertEquals(4, programador.trasGuardar)
+    }
+
+    @Test
+    fun unaEscrituraFallidaNoDisparaLaSincronizacion() = runBlocking {
+        repo.create(nuevo("LTIC-000001"))
+        programador.trasGuardar = 0
+
+        repo.create(nuevo("LTIC-000001"))
+        repo.delete("no-existe")
+
+        assertEquals(0, programador.trasGuardar)
     }
 
     @Test
@@ -232,14 +311,17 @@ class AssetRepositoryTest {
     private class ApiFalsa : AssetApi {
         val lotes = mutableListOf<SyncBatchRequest>()
         var aceptar = true
+        var motivo: String? = null
+        var codigoHttp: Int? = null
         var sinRed = false
         var remotos: List<AssetDto> = emptyList()
         val pedidosDesde = mutableListOf<Long>()
 
         override suspend fun sincronizar(lote: SyncBatchRequest): SyncBatchResponse {
             if (sinRed) throw IOException("sin red")
+            codigoHttp?.let { throw HttpException(Response.error<Any>(it, "".toResponseBody())) }
             lotes += lote
-            return SyncBatchResponse(lote.operaciones.map { SyncResultDto(it.opId, aceptar) })
+            return SyncBatchResponse(lote.operaciones.map { SyncResultDto(it.opId, aceptar, if (aceptar) null else motivo) })
         }
 
         override suspend fun obtenerCambios(updatedSince: Long): List<AssetDto> {
@@ -249,5 +331,17 @@ class AssetRepositoryTest {
         }
 
         override suspend fun obtenerCategorias(): List<CategoryDto> = emptyList()
+    }
+
+    private class ProgramadorContador : ProgramadorSync {
+        var trasGuardar = 0
+
+        override fun programarPeriodica() = Unit
+        override fun programarTrasGuardar() {
+            trasGuardar++
+        }
+        override fun sincronizarAhora() = Unit
+        override fun observarSincronizacionManual(): Flow<EstadoSincronizacion> =
+            flowOf(EstadoSincronizacion.Inactiva)
     }
 }

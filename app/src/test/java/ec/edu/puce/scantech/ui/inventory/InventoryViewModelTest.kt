@@ -7,6 +7,9 @@ import ec.edu.puce.scantech.domain.repository.AssetRepository
 import ec.edu.puce.scantech.domain.repository.SyncSummary
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerResumenInventarioUseCase
+import ec.edu.puce.scantech.domain.usecase.SincronizarAhoraUseCase
+import ec.edu.puce.scantech.domain.sync.EstadoSincronizacion
+import ec.edu.puce.scantech.domain.sync.ProgramadorSync
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -34,16 +37,19 @@ class InventoryViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private lateinit var repo: RepositorioFalso
+    private lateinit var programador: ProgramadorFalso
     private lateinit var vm: InventoryViewModel
 
     @Before
     fun preparar() {
         Dispatchers.setMain(dispatcher)
         repo = RepositorioFalso()
+        programador = ProgramadorFalso()
         vm = InventoryViewModel(
             SavedStateHandle(),
             ObtenerActivosUseCase(repo),
-            ObtenerResumenInventarioUseCase(repo, dispatcher)
+            ObtenerResumenInventarioUseCase(repo, dispatcher),
+            SincronizarAhoraUseCase(programador)
         )
     }
 
@@ -191,6 +197,65 @@ class InventoryViewModelTest {
     /** `uiState` usa WhileSubscribed: hace falta un suscriptor para que consulte. */
     private fun TestScope.observar() {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+    }
+
+    // ------------------------------------------------ Sincronización manual (#37)
+
+    @Test
+    fun elBotonDisparaLaSincronizacionManualYMuestraSuResultado() = runTest(dispatcher) {
+        advanceUntilIdle()
+
+        vm.sincronizarAhora()
+        programador.estado.value = EstadoSincronizacion.EnCurso
+        runCurrent()
+        assertTrue(vm.estadoSync.value.enProgreso)
+
+        val resultado = EstadoSincronizacion.Completada(enviadas = 2, recibidas = 1, enRevision = 0, ronda = "r1")
+        programador.estado.value = resultado
+        runCurrent()
+
+        assertEquals(1, programador.manuales)
+        assertEquals(resultado, vm.resultadoSync.value)
+
+        vm.resultadoSyncMostrado()
+        assertEquals(null, vm.resultadoSync.value)
+    }
+
+    @Test
+    fun noSeAnunciaElResultadoDeUnaRondaAnteriorAlTocarElBoton() = runTest(dispatcher) {
+        programador.estado.value = EstadoSincronizacion.Completada(1, 0, 0, ronda = "vieja")
+        advanceUntilIdle()
+        assertEquals("sin tocar el botón no hay aviso", null, vm.resultadoSync.value)
+
+        vm.sincronizarAhora()
+        runCurrent()
+        assertEquals(null, vm.resultadoSync.value)
+
+        programador.estado.value = EstadoSincronizacion.Fallida("HTTP 400", ronda = "nueva")
+        runCurrent()
+        assertEquals(EstadoSincronizacion.Fallida("HTTP 400", ronda = "nueva"), vm.resultadoSync.value)
+    }
+
+    @Test
+    fun tocarElBotonMientrasSincronizaNoDisparaOtraRonda() = runTest(dispatcher) {
+        programador.estado.value = EstadoSincronizacion.EnEspera
+        advanceUntilIdle()
+
+        vm.sincronizarAhora()
+
+        assertEquals(0, programador.manuales)
+    }
+
+    private class ProgramadorFalso : ProgramadorSync {
+        val estado = MutableStateFlow<EstadoSincronizacion>(EstadoSincronizacion.Inactiva)
+        var manuales = 0
+
+        override fun programarPeriodica() = Unit
+        override fun programarTrasGuardar() = Unit
+        override fun sincronizarAhora() {
+            manuales++
+        }
+        override fun observarSincronizacionManual(): Flow<EstadoSincronizacion> = estado
     }
 
     private fun activo(qr: String, nombre: String) = Asset(

@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewmodel.CreationExtras
 import ec.edu.puce.scantech.di.AppContainer
-import ec.edu.puce.scantech.data.sync.SyncWorker
 import ec.edu.puce.scantech.di.DefaultAppContainer
 
 /**
@@ -21,8 +20,8 @@ class ScanTechApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = DefaultAppContainer(this)
-        // Sube pendientes y baja cambios del servidor cada 15 min cuando hay red
-        SyncWorker.programar(this)
+        // Disparador periódico de respaldo (los otros dos: al guardar y manual)
+        container.programadorSync.programarPeriodica()
     }
 }
 

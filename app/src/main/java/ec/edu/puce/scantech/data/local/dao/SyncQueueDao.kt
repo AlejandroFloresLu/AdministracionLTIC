@@ -17,6 +17,27 @@ interface SyncQueueDao {
     @Query("SELECT * FROM sync_queue ORDER BY createdAt ASC, id ASC")
     suspend fun listarPendientes(): List<SyncOperationEntity>
 
+    /**
+     * Operaciones que se pueden subir, en orden: excluye las que están en revisión y todas las
+     * de un activo que tenga alguna en revisión, para no enviar sus cambios fuera de orden.
+     */
+    @Query(
+        """
+        SELECT * FROM sync_queue
+        WHERE assetId NOT IN (SELECT assetId FROM sync_queue WHERE enRevision = 1)
+        ORDER BY createdAt ASC, id ASC
+        """
+    )
+    suspend fun listarParaEnviar(): List<SyncOperationEntity>
+
+    /** Marca operaciones rechazadas por el servidor (4xx): no se reintentan hasta revisarlas. */
+    @Query("UPDATE sync_queue SET enRevision = 1, motivoRevision = :motivo, intentos = intentos + 1 WHERE id IN (:ids)")
+    suspend fun marcarEnRevision(ids: List<Long>, motivo: String)
+
+    /** Observa cuántas operaciones esperan revisión manual. */
+    @Query("SELECT COUNT(*) FROM sync_queue WHERE enRevision = 1")
+    fun observarEnRevision(): Flow<Int>
+
     /** Borra las operaciones que el servidor confirmó. */
     @Query("DELETE FROM sync_queue WHERE id IN (:ids)")
     suspend fun borrarConfirmadas(ids: List<Long>)

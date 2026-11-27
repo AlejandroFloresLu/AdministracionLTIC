@@ -28,7 +28,7 @@ import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
         SyncOperationEntity::class,
         SyncMetadataEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(SyncStatusConverter::class)
@@ -74,6 +74,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v3 -> v4: marca de revisión en `sync_queue` para las operaciones que el servidor
+         * rechazó (4xx). Las operaciones existentes quedan sin marcar.
+         */
+        val MIGRACION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `sync_queue` ADD COLUMN `enRevision` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `sync_queue` ADD COLUMN `motivoRevision` TEXT")
+            }
+        }
+
         @Volatile
         private var instancia: AppDatabase? = null
 
@@ -85,7 +96,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE_ARCHIVO
                 )
-                    .addMigrations(MIGRACION_1_2, MIGRACION_2_3)
+                    .addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4)
                     .addCallback(SembradoInicial)
                     .build()
                     .also { instancia = it }

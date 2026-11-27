@@ -3,6 +3,7 @@ package ec.edu.puce.scantech.data.local
 import androidx.test.platform.app.InstrumentationRegistry
 import ec.edu.puce.scantech.data.local.dao.SyncQueueDao
 import ec.edu.puce.scantech.data.local.entity.SyncOperationEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -58,6 +59,21 @@ class SyncQueueDaoTest {
         val restantes = dao.listarPendientes()
         assertEquals(1, restantes.size)
         assertTrue(restantes.single().id == idB)
+    }
+
+    @Test
+    fun listarParaEnviarExcluyeTodoElActivoConUnaOperacionEnRevision() = runBlocking {
+        val rechazada = dao.insertar(operacion(asset = "A", creada = 1_000L))
+        dao.insertar(operacion(asset = "A", creada = 2_000L))
+        dao.insertar(operacion(asset = "B", creada = 3_000L))
+
+        dao.marcarEnRevision(listOf(rechazada), "HTTP 422")
+
+        assertEquals(listOf("B"), dao.listarParaEnviar().map { it.assetId })
+        val marcada = dao.listarPendientes().first { it.id == rechazada }
+        assertTrue(marcada.enRevision)
+        assertEquals("HTTP 422", marcada.motivoRevision)
+        assertEquals(1, dao.observarEnRevision().first())
     }
 
     private fun operacion(asset: String, creada: Long) = SyncOperationEntity(
