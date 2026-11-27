@@ -1,6 +1,7 @@
 package ec.edu.puce.scantech.data.network
 
 import android.content.Context
+import ec.edu.puce.scantech.domain.sync.MonitorConectividad
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -13,13 +14,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * Observa si el dispositivo tiene acceso a Internet. Alimenta el banner "Sin conexión" (#15)
  * y dispara la sincronización cuando vuelve la red.
  */
-class ConexionObserver(context: Context) {
+class ConexionObserver(context: Context) : MonitorConectividad {
 
     private val gestorRed = context.applicationContext
         .getSystemService(ConnectivityManager::class.java)
 
     /** Emite `true` con conexión a Internet y `false` sin ella, solo cuando cambia. */
-    fun observarConexion(): Flow<Boolean> = callbackFlow {
+    override fun observarConexion(): Flow<Boolean> = callbackFlow {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 trySend(hayInternet())

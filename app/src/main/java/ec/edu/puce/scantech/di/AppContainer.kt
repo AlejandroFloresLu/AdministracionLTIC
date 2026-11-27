@@ -1,5 +1,7 @@
 package ec.edu.puce.scantech.di
 
+import ec.edu.puce.scantech.data.network.ConexionObserver
+import ec.edu.puce.scantech.domain.sync.MonitorConectividad
 import android.content.Context
 import ec.edu.puce.scantech.data.local.AppDatabase
 import ec.edu.puce.scantech.data.remote.AssetApi
@@ -19,6 +21,7 @@ import ec.edu.puce.scantech.domain.sync.ProgramadorSync
 interface AppContainer {
     val assetRepository: AssetRepository
     val programadorSync: ProgramadorSync
+    val monitorConectividad: MonitorConectividad
 }
 
 /**
@@ -36,6 +39,8 @@ class DefaultAppContainer(context: Context) : AppContainer {
     val assetApi: AssetApi by lazy { RetrofitClient.crearAssetApi(BASE_URL) }
 
     override val programadorSync: ProgramadorSync by lazy { ProgramadorSyncWorkManager(appContext) }
+
+    override val monitorConectividad: MonitorConectividad by lazy { ConexionObserver(appContext) }
 
     override val assetRepository: AssetRepository by lazy {
         AssetRepositoryImpl(

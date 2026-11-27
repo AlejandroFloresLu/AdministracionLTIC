@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ec.edu.puce.scantech.appContainer
 import ec.edu.puce.scantech.domain.model.Asset
 import ec.edu.puce.scantech.domain.model.ResumenInventario
+import ec.edu.puce.scantech.domain.usecase.ObservarConexionUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivosUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerResumenInventarioUseCase
 import ec.edu.puce.scantech.domain.usecase.SincronizarAhoraUseCase
@@ -48,8 +49,20 @@ class InventoryViewModel(
     private val savedStateHandle: SavedStateHandle,
     private val obtenerActivosUseCase: ObtenerActivosUseCase,
     obtenerResumenInventarioUseCase: ObtenerResumenInventarioUseCase,
-    private val sincronizarAhoraUseCase: SincronizarAhoraUseCase
+    private val sincronizarAhoraUseCase: SincronizarAhoraUseCase,
+    observarConexionUseCase: ObservarConexionUseCase
 ) : ViewModel() {
+
+    /**
+     * #15: `false` cuando el teléfono no tiene internet. La app sigue funcionando con Room
+     * (offline-first) y la pantalla muestra un aviso con los cambios pendientes de subir.
+     */
+    val hayConexion: StateFlow<Boolean> = observarConexionUseCase()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = true
+        )
 
     /** Estado de la sincronización manual: el botón muestra un indicador mientras [EstadoSincronizacion.enProgreso]. */
     private val _estadoSync = MutableStateFlow<EstadoSincronizacion>(EstadoSincronizacion.Inactiva)
@@ -186,7 +199,8 @@ class InventoryViewModel(
                     savedStateHandle = createSavedStateHandle(),
                     obtenerActivosUseCase = ObtenerActivosUseCase(repository),
                     obtenerResumenInventarioUseCase = ObtenerResumenInventarioUseCase(repository),
-                    sincronizarAhoraUseCase = SincronizarAhoraUseCase(container.programadorSync)
+                    sincronizarAhoraUseCase = SincronizarAhoraUseCase(container.programadorSync),
+                    observarConexionUseCase = ObservarConexionUseCase(container.monitorConectividad)
                 )
             }
         }
