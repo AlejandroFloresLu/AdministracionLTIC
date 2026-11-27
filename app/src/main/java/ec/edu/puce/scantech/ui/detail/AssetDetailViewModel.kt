@@ -14,7 +14,6 @@ import ec.edu.puce.scantech.domain.usecase.EliminarActivoUseCase
 import ec.edu.puce.scantech.domain.usecase.GuardarObservacionesUseCase
 import ec.edu.puce.scantech.domain.usecase.ObtenerActivoPorIdUseCase
 import ec.edu.puce.scantech.domain.validacion.ValidadorActivo
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +23,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * [RDA-1 Tema 4: Ciclo de Vida y Resiliencia ante Cambios de Configuración]
@@ -60,6 +58,20 @@ class AssetDetailViewModel(
     /** Resultado de cada guardado de observaciones, para mostrar un Snackbar una sola vez. */
     val eventos: Flow<ObservacionesEvento> = _eventos.receiveAsFlow()
 
+    /** Baja lógica en curso (deshabilita editar y eliminar). */
+    private val eliminando = MutableStateFlow(false)
+
+    /**
+     * La baja ya se guardó en Room. Room emitirá `null` para este activo (está oculto), y eso
+     * no es un error: la pantalla está navegando atrás.
+     */
+    private var bajaCompletada = false
+
+    private val _eventosBaja = Channel<BajaEvento>(Channel.BUFFERED)
+
+    /** Resultado de la baja lógica, de un solo uso: navegar atrás o mostrar el error. */
+    val eventosBaja: Flow<BajaEvento> = _eventosBaja.receiveAsFlow()
+
     init {
         observarActivo()
     }
@@ -73,15 +85,23 @@ class AssetDetailViewModel(
             combine(
                 obtenerActivoPorIdUseCase(assetId),
                 savedStateHandle.getStateFlow<String?>(KEY_BORRADOR_OBSERVACIONES, null),
-                guardandoObservaciones
-            ) { asset, borrador, guardando -> Triple(asset, borrador, guardando) }
+                guardandoObservaciones,
+                eliminando
+            ) { asset, borrador, guardando, borrando -> EstadoFicha(asset, borrador, guardando, borrando) }
                 .catch { error ->
                     _uiState.value = AssetDetailUiState.Error(
                         mensaje = error.localizedMessage ?: "Error al consultar el activo en la base de datos"
                     )
                 }
-                .collect { (asset, borrador, guardando) ->
-                    if (asset == null) {
+                .collect { (asset, borrador, guardando, borrando) ->
+                    if (asset == null && (borrando || bajaCompletada)) {
+                        // Lo ocultó nuestra propia baja lógica: se mantiene la última ficha
+                        // mientras la pantalla navega atrás, en lugar de mostrar "no existe".
+                        val actual = _uiState.value
+                        if (actual is AssetDetailUiState.Success) {
+                            _uiState.value = actual.copy(isDeleting = true)
+                        }
+                    } else if (asset == null) {
                         _uiState.value = AssetDetailUiState.Error(
                             mensaje = "El activo con ID $assetId no existe o fue dado de baja."
                         )
@@ -93,7 +113,7 @@ class AssetDetailViewModel(
                         }
                         _uiState.value = AssetDetailUiState.Success(
                             asset = asset,
-                            isDeleting = (_uiState.value as? AssetDetailUiState.Success)?.isDeleting ?: false,
+                            isDeleting = borrando,
                             observacionesDraft = borrador ?: guardadas,
                             isSavingObservaciones = guardando
                         )
@@ -138,16 +158,25 @@ class AssetDetailViewModel(
     }
 
     /**
-     * Procesa la baja lógica del activo tecnológico.
+     * Baja lógica (Estrategia de Datos §3.c): el repositorio marca el activo PENDING_DELETE,
+     * lo oculta de la UI y encola la baja; la fila se borra físicamente cuando el servidor confirma.
+     *
+     * Ignora toques repetidos mientras hay una baja en curso. Al terminar emite
+     * [BajaEvento.Completada] para que la pantalla navegue atrás; si falla, [BajaEvento.Error]
+     * y la ficha sigue visible.
      */
-    fun eliminarActivo(onSuccess: () -> Unit) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val resultado = eliminarActivoUseCase(assetId)
-            withContext(Dispatchers.Main) {
-                if (resultado is Result.Success) {
-                    onSuccess()
-                } else if (resultado is Result.Error) {
-                    _uiState.value = AssetDetailUiState.Error(resultado.message)
+    fun eliminarActivo() {
+        if (eliminando.value || bajaCompletada) return
+        eliminando.value = true
+        viewModelScope.launch {
+            when (val resultado = eliminarActivoUseCase(assetId)) {
+                is Result.Success -> {
+                    bajaCompletada = true
+                    _eventosBaja.send(BajaEvento.Completada)
+                }
+                is Result.Error -> {
+                    eliminando.value = false
+                    _eventosBaja.send(BajaEvento.Error(resultado.message))
                 }
             }
         }
@@ -160,6 +189,13 @@ class AssetDetailViewModel(
     companion object {
         /** Clave del borrador en [SavedStateHandle]; `null` = sin cambios respecto a Room. */
         private const val KEY_BORRADOR_OBSERVACIONES = "observaciones_borrador"
+
+        private data class EstadoFicha(
+            val asset: Asset?,
+            val borrador: String?,
+            val guardando: Boolean,
+            val borrando: Boolean
+        )
 
         fun provideFactory(assetId: String): ViewModelProvider.Factory = viewModelFactory {
             initializer {

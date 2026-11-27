@@ -43,6 +43,7 @@
     <string name="asset_detail_short_title">Ficha Técnica</string>
     <string name="edit_asset">Editar activo</string>
     <string name="delete_asset">Eliminar activo</string>
+    <string name="delete_asset_error">No se pudo dar de baja el activo: %1$s</string>
     <string name="asset_not_found">No se encontró el activo con identificador %1$s en la base de datos local.</string>
     <string name="detail_section_specs">Características técnicas</string>
     <string name="detail_section_location">Ubicación</string>

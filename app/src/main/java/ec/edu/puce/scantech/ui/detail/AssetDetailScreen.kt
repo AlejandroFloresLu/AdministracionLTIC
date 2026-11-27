@@ -123,6 +123,17 @@ fun AssetDetailScreen(
         }
     }
 
+    // Resultado de la baja lógica: volver atrás o avisar el error sin perder la ficha.
+    val plantillaErrorBaja = stringResource(R.string.delete_asset_error)
+    LaunchedEffect(viewModel) {
+        viewModel.eventosBaja.collect { evento ->
+            when (evento) {
+                BajaEvento.Completada -> onNavigateBack()
+                is BajaEvento.Error -> snackbarHostState.showSnackbar(plantillaErrorBaja.format(evento.mensaje))
+            }
+        }
+    }
+
     when (val state = uiState) {
         is AssetDetailUiState.Loading -> {
             Scaffold { innerPadding ->
@@ -166,9 +177,8 @@ fun AssetDetailScreen(
                     viewModel.descartarObservaciones()
                     onNavigateBack()
                 },
-                onDeleteConfirmed = {
-                    viewModel.eliminarActivo(onSuccess = onNavigateBack)
-                },
+                onDeleteConfirmed = viewModel::eliminarActivo,
+                eliminando = state.isDeleting,
                 modifier = modifier
             )
         }
@@ -196,6 +206,7 @@ fun AssetDetailContent(
     onDiscardObservations: () -> Unit,
     onDeleteConfirmed: () -> Unit,
     modifier: Modifier = Modifier,
+    eliminando: Boolean = false,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     estadoOperativo: EstadoOperativo? = null
 ) {
@@ -224,7 +235,7 @@ fun AssetDetailContent(
                 },
                 actions = {
                     // Botón para navegar al formulario en modo edición (Tarea #55)
-                    IconButton(onClick = onNavigateToEdit) {
+                    IconButton(onClick = onNavigateToEdit, enabled = !eliminando) {
                         Icon(
                             imageVector = Icons.Rounded.Edit,
                             contentDescription = stringResource(R.string.edit_asset),
@@ -234,6 +245,7 @@ fun AssetDetailContent(
                     // Botón para dar de baja lógica al activo (RDA-3 Tema 11 y 12)
                     IconButton(
                         onClick = { showDeleteDialog = true },
+                        enabled = !eliminando,
                         colors = IconButtonDefaults.iconButtonColors(
                             contentColor = MaterialTheme.colorScheme.error
                         )

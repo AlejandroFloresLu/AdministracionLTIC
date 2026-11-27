@@ -216,7 +216,7 @@ class AssetRepositoryImpl(
         } catch (e: CancellationException) {
             throw e
         } catch (e: SQLiteConstraintException) {
-            Result.Error("Ya existe un activo con este código QR", e)
+            Result.Error("Ya existe un activo con este código QR (incluye bajas aún sin sincronizar)", e)
         } catch (e: Exception) {
             Result.Error("No se pudo completar la operación: ${e.message ?: "error desconocido"}", e)
         }
