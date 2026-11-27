@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
@@ -96,6 +98,7 @@ fun InventoryDashboardScreen(
     val resumen by viewModel.resumen.collectAsStateWithLifecycle()
     val estadoSync by viewModel.estadoSync.collectAsStateWithLifecycle()
     val resultadoSync by viewModel.resultadoSync.collectAsStateWithLifecycle()
+    val hayConexion by viewModel.hayConexion.collectAsStateWithLifecycle()
 
     // Disparador manual: al terminar la ronda pedida con el botón se avisa una sola vez
     val snackbarHostState = remember { SnackbarHostState() }
@@ -178,6 +181,16 @@ fun InventoryDashboardScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // #15: aviso de modo sin conexión con los cambios que esperan subir
+            if (!hayConexion) {
+                BannerSinConexion(
+                    pendientes = resumen.pendientesSync,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
             // Tarea #9: Barra de búsqueda con State Hoisting estricto
             SearchBarSection(
                 searchQuery = searchQuery,
@@ -573,4 +586,44 @@ private fun mensajeDeSync(resultado: EstadoSincronizacion): String? = when (resu
     }
     is EstadoSincronizacion.Fallida -> stringResource(R.string.sync_failed, resultado.mensaje)
     else -> null
+}
+
+/**
+ * #15: aviso sin estado propio (Stateless). Se muestra solo sin internet; los datos siguen
+ * disponibles desde Room y los [pendientes] se suben cuando vuelve la red.
+ */
+@Composable
+fun BannerSinConexion(
+    pendientes: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CloudOff,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.offline_banner_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = pluralStringResource(R.plurals.offline_banner_pending, pendientes, pendientes),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
 }

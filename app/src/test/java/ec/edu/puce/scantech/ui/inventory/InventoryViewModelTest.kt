@@ -26,6 +26,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import ec.edu.puce.scantech.domain.sync.MonitorConectividad
+import ec.edu.puce.scantech.domain.usecase.ObservarConexionUseCase
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -38,6 +40,7 @@ class InventoryViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private lateinit var repo: RepositorioFalso
     private lateinit var programador: ProgramadorFalso
+    private val monitor = MonitorFalso()
     private lateinit var vm: InventoryViewModel
 
     @Before
@@ -49,13 +52,31 @@ class InventoryViewModelTest {
             SavedStateHandle(),
             ObtenerActivosUseCase(repo),
             ObtenerResumenInventarioUseCase(repo, dispatcher),
-            SincronizarAhoraUseCase(programador)
+            SincronizarAhoraUseCase(programador),
+            ObservarConexionUseCase(monitor)
         )
     }
 
     @After
     fun limpiar() {
         Dispatchers.resetMain()
+    }
+
+    /** #15: sin internet, hayConexion pasa a false para mostrar el aviso; al volver, a true. */
+    @Test
+    fun hayConexionSigueAlMonitorDeRed() = runTest(dispatcher) {
+        val recolector = launch { vm.hayConexion.collect {} }
+        runCurrent()
+        assertEquals(true, vm.hayConexion.value)
+
+        monitor.conectado.value = false
+        runCurrent()
+        assertEquals(false, vm.hayConexion.value)
+
+        monitor.conectado.value = true
+        runCurrent()
+        assertEquals(true, vm.hayConexion.value)
+        recolector.cancel()
     }
 
     @Test
@@ -244,6 +265,11 @@ class InventoryViewModelTest {
         vm.sincronizarAhora()
 
         assertEquals(0, programador.manuales)
+    }
+
+    private class MonitorFalso : MonitorConectividad {
+        val conectado = MutableStateFlow(true)
+        override fun observarConexion(): Flow<Boolean> = conectado
     }
 
     private class ProgramadorFalso : ProgramadorSync {

@@ -73,4 +73,9 @@
     <string name="sync_done">Sincronización completa: %1$d enviados, %2$d recibidos</string>
     <string name="sync_done_with_review">Sincronización completa: %1$d enviados, %2$d recibidos, %3$d en revisión</string>
     <string name="sync_failed">No se pudo sincronizar: %1$s</string>
+    <string name="offline_banner_title">Sin conexión: trabajando con datos locales</string>
+    <plurals name="offline_banner_pending">
+        <item quantity="one">%1$d cambio se subirá cuando vuelva la red</item>
+        <item quantity="other">%1$d cambios se subirán cuando vuelva la red</item>
+    </plurals>
 </resources>
