@@ -32,6 +32,8 @@ import androidx.compose.material.icons.rounded.Laptop
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Router
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -43,12 +45,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -60,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ec.edu.puce.scantech.R
 import ec.edu.puce.scantech.data.local.SyncStatus
 import ec.edu.puce.scantech.domain.model.Asset
+import ec.edu.puce.scantech.domain.sync.EstadoSincronizacion
 import ec.edu.puce.scantech.data.model.EstadoOperativo
 import ec.edu.puce.scantech.ui.components.EmptyState
 import ec.edu.puce.scantech.ui.components.ErrorState
@@ -87,6 +94,18 @@ fun InventoryDashboardScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
     val resumen by viewModel.resumen.collectAsStateWithLifecycle()
+    val estadoSync by viewModel.estadoSync.collectAsStateWithLifecycle()
+    val resultadoSync by viewModel.resultadoSync.collectAsStateWithLifecycle()
+
+    // Disparador manual: al terminar la ronda pedida con el botón se avisa una sola vez
+    val snackbarHostState = remember { SnackbarHostState() }
+    val mensajeResultado = resultadoSync?.let { mensajeDeSync(it) }
+    LaunchedEffect(resultadoSync) {
+        if (mensajeResultado != null) {
+            snackbarHostState.showSnackbar(mensajeResultado)
+            viewModel.resultadoSyncMostrado()
+        }
+    }
 
     val categories = listOf(
         stringResource(R.string.category_all),
@@ -107,6 +126,23 @@ fun InventoryDashboardScreen(
                     )
                 },
                 actions = {
+                    IconButton(
+                        onClick = viewModel::sincronizarAhora,
+                        enabled = !estadoSync.enProgreso
+                    ) {
+                        if (estadoSync.enProgreso) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Sync,
+                                contentDescription = stringResource(R.string.sync_now),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     IconButton(onClick = onNavigateToCreate) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
@@ -122,6 +158,7 @@ fun InventoryDashboardScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToScanner,
@@ -524,4 +561,16 @@ fun getCategoryIcon(categoria: String): ImageVector {
         "periféricos", "perifericos" -> Icons.Rounded.Devices
         else -> Icons.Rounded.Computer
     }
+}
+
+/** Texto del Snackbar con el resultado de la sincronización manual. */
+@Composable
+private fun mensajeDeSync(resultado: EstadoSincronizacion): String? = when (resultado) {
+    is EstadoSincronizacion.Completada -> if (resultado.enRevision > 0) {
+        stringResource(R.string.sync_done_with_review, resultado.enviadas, resultado.recibidas, resultado.enRevision)
+    } else {
+        stringResource(R.string.sync_done, resultado.enviadas, resultado.recibidas)
+    }
+    is EstadoSincronizacion.Fallida -> stringResource(R.string.sync_failed, resultado.mensaje)
+    else -> null
 }

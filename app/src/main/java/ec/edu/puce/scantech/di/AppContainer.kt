@@ -5,7 +5,9 @@ import ec.edu.puce.scantech.data.local.AppDatabase
 import ec.edu.puce.scantech.data.remote.AssetApi
 import ec.edu.puce.scantech.data.remote.RetrofitClient
 import ec.edu.puce.scantech.data.repository.AssetRepositoryImpl
+import ec.edu.puce.scantech.data.sync.ProgramadorSyncWorkManager
 import ec.edu.puce.scantech.domain.repository.AssetRepository
+import ec.edu.puce.scantech.domain.sync.ProgramadorSync
 
 /**
  * Contenedor de dependencias de la app (inyección de dependencias manual).
@@ -16,6 +18,7 @@ import ec.edu.puce.scantech.domain.repository.AssetRepository
  */
 interface AppContainer {
     val assetRepository: AssetRepository
+    val programadorSync: ProgramadorSync
 }
 
 /**
@@ -32,11 +35,14 @@ class DefaultAppContainer(context: Context) : AppContainer {
 
     val assetApi: AssetApi by lazy { RetrofitClient.crearAssetApi(BASE_URL) }
 
+    override val programadorSync: ProgramadorSync by lazy { ProgramadorSyncWorkManager(appContext) }
+
     override val assetRepository: AssetRepository by lazy {
         AssetRepositoryImpl(
             assetDao = database.assetDao(),
             syncQueueDao = database.syncQueueDao(),
-            api = assetApi
+            api = assetApi,
+            programador = programadorSync
         )
     }
 

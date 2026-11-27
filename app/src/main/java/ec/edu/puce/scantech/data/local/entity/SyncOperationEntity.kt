@@ -1,5 +1,6 @@
 package ec.edu.puce.scantech.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -24,5 +25,13 @@ data class SyncOperationEntity(
     val tipo: SyncStatus,
     val payload: String,
     val createdAt: Long = System.currentTimeMillis(),
-    val intentos: Int = 0
+    val intentos: Int = 0,
+    /**
+     * `true` si el servidor la rechazó (4xx o `aceptado = false`): no se reintenta y queda
+     * para revisión. Mientras tanto tampoco se envían las operaciones posteriores del mismo activo.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val enRevision: Boolean = false,
+    /** Motivo del rechazo que devolvió el servidor, para mostrarlo en la revisión. */
+    val motivoRevision: String? = null
 )

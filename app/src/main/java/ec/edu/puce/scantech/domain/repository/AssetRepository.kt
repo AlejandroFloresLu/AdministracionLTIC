@@ -11,7 +11,10 @@ data class RechazoSync(val assetId: String, val motivo: String)
 data class SyncSummary(
     /** Operaciones locales que el servidor aceptó. */
     val sent: Int,
-    /** Operaciones rechazadas con su motivo; siguen en la cola. */
+    /**
+     * Operaciones que el servidor rechazó (4xx o `aceptado = false`), con su motivo. Siguen en
+     * la cola marcadas para revisión y no se reintentan.
+     */
     val rejected: List<RechazoSync>,
     /** Activos descargados del servidor. */
     val received: Int,

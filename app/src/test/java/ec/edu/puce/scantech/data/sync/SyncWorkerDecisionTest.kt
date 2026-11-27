@@ -31,11 +31,13 @@ class SyncWorkerDecisionTest {
         assertEquals(AccionSync.REINTENTAR, SyncWorker.decidir(Result.Error("sin red", IOException()), 0))
         assertEquals(AccionSync.REINTENTAR, SyncWorker.decidir(Result.Error("500", http(503)), 0))
         assertEquals(AccionSync.REINTENTAR, SyncWorker.decidir(Result.Error("429", http(429)), 0))
+        assertEquals(AccionSync.REINTENTAR, SyncWorker.decidir(Result.Error("408", http(408)), 0))
     }
 
     @Test
     fun unErrorDelClienteNoSeReintenta() {
         assertEquals(AccionSync.FALLO, SyncWorker.decidir(Result.Error("400", http(400)), 0))
+        assertEquals(AccionSync.FALLO, SyncWorker.decidir(Result.Error("404", http(404)), 0))
         assertEquals(AccionSync.FALLO, SyncWorker.decidir(Result.Error("desconocido"), 0))
     }
 
