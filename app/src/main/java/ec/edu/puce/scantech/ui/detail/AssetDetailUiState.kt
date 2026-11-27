@@ -51,3 +51,12 @@ sealed interface ObservacionesEvento {
     data class Error(val mensaje: String) : ObservacionesEvento
 }
 
+/** Eventos de un solo uso de la baja lógica. */
+sealed interface BajaEvento {
+    /** El activo quedó PENDING_DELETE, oculto y con la baja encolada: volver atrás. */
+    data object Completada : BajaEvento
+
+    /** No se pudo dar de baja; la ficha sigue visible y se muestra el motivo. */
+    data class Error(val mensaje: String) : BajaEvento
+}
+

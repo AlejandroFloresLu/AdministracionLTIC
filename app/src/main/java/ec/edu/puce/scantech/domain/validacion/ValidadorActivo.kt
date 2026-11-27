@@ -34,7 +34,7 @@ object ValidadorActivo {
 
     const val MAX_OBSERVACIONES = 500
     private val FORMATO_QR = Regex("^LTIC-\\d{6}$")
-    const val MENSAJE_QR_DUPLICADO = "Ya existe un activo con este código"
+    const val MENSAJE_QR_DUPLICADO = "Ya existe un activo con este código (incluye bajas aún sin sincronizar)"
 
     /** `true` si el QR tiene el formato `LTIC-000123`; solo así vale la pena consultar su unicidad. */
     fun formatoQrValido(qrCode: String): Boolean = FORMATO_QR.matches(qrCode.trim())
