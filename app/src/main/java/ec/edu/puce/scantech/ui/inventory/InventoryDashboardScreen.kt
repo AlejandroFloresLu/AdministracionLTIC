@@ -34,7 +34,8 @@ import androidx.compose.material.icons.rounded.Router
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -391,11 +392,17 @@ fun ActivoCard(
     onClick: (assetId: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
+    // Caso 4: tarjeta semántica de Material 3 con rol lógico del tema (sin colores fijos),
+    // bordes del sistema de formas y margen perimetral de 8 dp
+    Card(
         modifier = modifier
             .fillMaxWidth()
+            .padding(8.dp)
             .clickable { onClick(activo.id) },
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
         Row(
             modifier = Modifier
