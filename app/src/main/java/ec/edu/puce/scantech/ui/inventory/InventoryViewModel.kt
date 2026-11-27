@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 
 /**
  * ViewModel del Catálogo de Inventario: búsqueda y filtros reactivos sobre Room
@@ -51,6 +52,21 @@ class InventoryViewModel(
     private val sincronizarAhoraUseCase: SincronizarAhoraUseCase
 ) : ViewModel() {
 
+    /**
+     * [Caso 3] Estado de la pantalla, estructurado e inmutable: todas sus propiedades son `val`.
+     * Para cambiar algo, el ViewModel emite una copia nueva con `copy()`; nadie lo modifica en sitio.
+     */
+    data class ScreenState(
+        val titleText: String = "Módulo Inventario LTIC",
+        val isProcessing: Boolean = false
+    )
+
+    /** [Caso 3] Fuente única de verdad (SSOT): solo el ViewModel puede escribir aquí. */
+    private val _screenState = MutableStateFlow(ScreenState())
+
+    /** [Caso 3] Exposición de solo lectura: la UI observa el estado pero no puede reasignar `.value`. */
+    val screenState: StateFlow<ScreenState> = _screenState.asStateFlow()
+
     /** Estado de la sincronización manual: el botón muestra un indicador mientras [EstadoSincronizacion.enProgreso]. */
     private val _estadoSync = MutableStateFlow<EstadoSincronizacion>(EstadoSincronizacion.Inactiva)
     val estadoSync: StateFlow<EstadoSincronizacion> = _estadoSync.asStateFlow()
@@ -69,6 +85,8 @@ class InventoryViewModel(
         viewModelScope.launch {
             sincronizarAhoraUseCase.observarEstado().collect { estado ->
                 _estadoSync.value = estado
+                // Caso 3: el ViewModel actualiza el estado inmutable con una copia (UDF)
+                _screenState.update { it.copy(isProcessing = estado.enProgreso) }
                 val ronda = estado.ronda()
                 if (esperandoResultado && ronda != null && ronda != rondaAnterior) {
                     esperandoResultado = false

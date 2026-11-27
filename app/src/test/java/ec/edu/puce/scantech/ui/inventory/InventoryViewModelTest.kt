@@ -58,6 +58,15 @@ class InventoryViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /** Caso 3: la UI arranca leyendo el título desde el estado inmutable inicial. */
+    @Test
+    fun elEstadoDePantallaInicialTraeElTituloConfigurado() {
+        assertEquals(
+            InventoryViewModel.ScreenState(titleText = "Módulo Inventario LTIC", isProcessing = false),
+            vm.screenState.value
+        )
+    }
+
     @Test
     fun escribirRapidoSoloConsultaRoomConElUltimoTextoTrasElDebounce() = runTest(dispatcher) {
         observar()

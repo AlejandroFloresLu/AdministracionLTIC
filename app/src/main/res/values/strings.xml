@@ -18,7 +18,6 @@
     <string name="reset_filters">Limpiar Filtros</string>
 
     <!-- Catalog & Filters -->
-    <string name="inventory_title">Catálogo ScanTech</string>
     <string name="search_placeholder">Buscar activo por modelo, serie o código...</string>
     <string name="clear_search">Borrar búsqueda</string>
     <string name="scan_action">Escanear Activo</string>

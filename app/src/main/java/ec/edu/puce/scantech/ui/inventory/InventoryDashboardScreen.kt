@@ -91,6 +91,8 @@ fun InventoryDashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Caso 3: se lee el estado inmutable del ViewModel de forma consciente del ciclo de vida
+    val screenState by viewModel.screenState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
     val resumen by viewModel.resumen.collectAsStateWithLifecycle()
@@ -121,7 +123,8 @@ fun InventoryDashboardScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.inventory_title),
+                        // Caso 3: el título ya no está quemado; se renderiza desde el StateFlow
+                        text = screenState.titleText,
                         fontWeight = FontWeight.Bold
                     )
                 },
